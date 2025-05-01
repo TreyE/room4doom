@@ -28,7 +28,7 @@ use gamestate::Game;
 use gamestate::subsystems::GameSubsystem;
 use gamestate_traits::sdl2::event::{Event, WindowEvent};
 use gamestate_traits::sdl2::keyboard::Scancode;
-use gamestate_traits::sdl2::video::Window;
+use gamestate_traits::sdl2::video::{DisplayMode, Window, WindowPos};
 use gamestate_traits::{
     GameState, PixelBuffer, PlayViewRenderer, RenderTrait, SubsystemTrait, sdl2,
 };
@@ -57,10 +57,42 @@ const fn set_lookdirs(options: &CLIOptions) {
     }
 }
 
+fn assign_window_size(
+    window: &mut Window,
+    current_display_mode: DisplayMode,
+    options: &CLIOptions,
+) -> Result<(), Box<dyn Error>> {
+    if window
+        .fullscreen_state()
+        .eq(&sdl2::video::FullscreenType::Off)
+    {
+        let op_height = options.height.clone();
+        let op_width = options.width.clone();
+        let calc_width = ((op_height as f32) * 8.0 / 5.0).floor() as i32;
+        let calc_height = ((op_width as f32) * 5.0 / 8.0).floor() as i32;
+
+        let screen_w = current_display_mode.w;
+        let screen_h = current_display_mode.h;
+        if op_width > (calc_width as u32) {
+            let w_loc = WindowPos::Positioned(((screen_w - (op_width as i32)) / 2).abs());
+            let h_loc = WindowPos::Positioned((screen_h - calc_height) / 2);
+            window.set_position(w_loc, h_loc);
+            window.set_size(op_width as u32, calc_height as u32)?;
+        } else {
+            let w_loc = WindowPos::Positioned(((screen_w - calc_width) / 2).abs());
+            let h_loc = WindowPos::Positioned((screen_h - (op_height as i32)) / 2);
+            window.set_position(w_loc, h_loc);
+            let _ = window.set_size(calc_width as u32, op_height as u32)?;
+        }
+    }
+    Ok(())
+}
+
 /// Never returns until `game.running` is set to false
 pub fn d_doom_loop(
     mut game: Game,
     mut input: Input,
+    current_display_mode: DisplayMode,
     window: Window,
     gl_ctx: golem::Context,
     options: CLIOptions,
@@ -83,8 +115,9 @@ pub fn d_doom_loop(
     if options.episode.is_none() && options.map.is_none() {
         game.start_title();
     }
-
     let mut canvas = window.into_canvas().accelerated().present_vsync().build()?;
+
+    assign_window_size(canvas.window_mut(), current_display_mode, &options)?;
     canvas.window_mut().show();
     // BEGIN SETUP
     set_lookdirs(&options);

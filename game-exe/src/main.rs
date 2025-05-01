@@ -111,6 +111,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         .hidden()
         .build()?;
 
+    let cdm = video_ctx.current_display_mode(0)?;
+
     if let Some(fullscreen) = options.fullscreen {
         if fullscreen {
             window.set_fullscreen(sdl2::video::FullscreenType::Desktop)?;
@@ -118,6 +120,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             window.set_fullscreen(sdl2::video::FullscreenType::Off)?;
         }
     }
+
+    let gl_attr = video_ctx.gl_attr();
+    gl_attr.set_context_profile(sdl2::video::GLProfile::Core);
 
     let _gl_ctx = window.gl_create_context()?;
     let gl_ctx = unsafe {
@@ -127,15 +132,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         .unwrap()
     };
 
-    let gl_attr = video_ctx.gl_attr();
-    gl_attr.set_context_profile(sdl2::video::GLProfile::Core);
-
     let input = Input::new(sdl_ctx.event_pump()?, (&user_config.input).into());
 
     sdl_ctx.mouse().show_cursor(false);
     sdl_ctx.mouse().set_relative_mouse_mode(true);
     sdl_ctx.mouse().capture(true);
 
-    d_doom_loop(game, input, window, gl_ctx, options)?;
+    d_doom_loop(game, input, cdm, window, gl_ctx, options)?;
     Ok(())
 }
