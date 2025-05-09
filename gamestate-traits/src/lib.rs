@@ -6,7 +6,8 @@ pub mod util;
 
 use gameplay::MAXPLAYERS;
 pub use gameplay::{
-    AmmoType, Card, GameMode, PlayerCheat, PlayerStatus, PowerType, Skill, TICRATE, WEAPON_INFO, WeaponType, WorldEndPlayerInfo, m_random
+    AmmoType, Card, GameMode, PlayerCheat, PlayerStatus, PowerType, Skill, TICRATE, WEAPON_INFO,
+    WeaponType, WorldEndPlayerInfo, m_random,
 };
 pub use render_trait::{PixelBuffer, PlayViewRenderer, RenderTrait};
 pub use sdl2::keyboard::Scancode;
@@ -124,27 +125,30 @@ pub trait SubsystemTrait {
 
     /// Free method, requires `get_palette()` to be implemented
     fn draw_patch_pixels(&self, patch: &WadPatch, x: i32, y: i32, pixels: &mut impl PixelBuffer) {
+        let f = pixels.size().height() / 200;
+        let fx = pixels.size().width() / 320;
+
         let mut xtmp = 0;
         let mut ytmp = 0;
 
-        let f = pixels.size().height() / 200;
         for column in patch.columns.iter() {
-            for n in 0..f {
+            if column.y_offset == 255 {
+                xtmp += 1;
+            } else {
                 for p in column.pixels.iter() {
-                    let colour = self.get_palette().0[*p];
-                    for _ in 0..f {
-                        let x = (x + xtmp - n - patch.left_offset as i32).unsigned_abs() as usize;
-                        let y = (y + ytmp + column.y_offset * f).unsigned_abs() as usize;
-                        pixels.set_pixel(x, y, &colour);
-                        ytmp += 1;
+                    for ny in 0..f {
+                        for nx in 0..fx {
+                            let colour = self.get_palette().0[*p];
+                            let x = ((x + xtmp - patch.left_offset as i32) * fx + nx).unsigned_abs()
+                                as usize;
+                            let y = ((y + ytmp + column.y_offset) * f + ny).unsigned_abs() as usize;
+                            pixels.set_pixel(x, y, &colour);
+                        }
                     }
-                }
-                ytmp = 0;
-
-                if column.y_offset == 255 {
-                    xtmp += 1;
+                    ytmp += 1;
                 }
             }
+            ytmp = 0;
         }
     }
 }

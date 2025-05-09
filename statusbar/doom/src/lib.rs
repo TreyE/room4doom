@@ -6,7 +6,8 @@
 use faces::DoomguyFace;
 use gamestate_traits::util::{draw_num_pixels, get_num_sprites, get_st_key_sprites};
 use gamestate_traits::{
-    AmmoType, GameMode, GameTraits, PixelBuffer, PlayerStatus, Scancode, SubsystemTrait, WEAPON_INFO, WeaponType
+    AmmoType, GameMode, GameTraits, PixelBuffer, PlayerStatus, Scancode, SubsystemTrait,
+    WEAPON_INFO, WeaponType,
 };
 use std::collections::HashMap;
 use wad::WadData;
@@ -19,6 +20,7 @@ pub struct Statusbar {
     screen_height: i32,
     mode: GameMode,
     palette: WadPalette,
+    background: WadPatch,
     patches: HashMap<&'static str, WadPatch>,
     /// Nums, index is the actual number
     big_nums: [WadPatch; 10],
@@ -46,6 +48,7 @@ impl Statusbar {
             mode,
             palette,
             patches,
+            background: WadPatch::from_lump(wad.get_lump("STBAR").unwrap()),
             big_nums: get_num_sprites("STTNUM", 0, wad),
             lil_nums: get_num_sprites("STCFN0", 48, wad),
             grey_nums: get_num_sprites("STGNUM", 0, wad),
@@ -63,21 +66,19 @@ impl Statusbar {
     }
 
     fn draw_health_pixels(&self, big: bool, face: bool, pixels: &mut impl PixelBuffer) {
-        let f = pixels.size().height() / 200;
-
         let nums = if big { &self.big_nums } else { &self.lil_nums };
 
-        let mut y = nums[0].height as i32 * f;
-        let mut x = nums[0].width as i32 * f;
+        let mut y = nums[0].height as i32;
+        let mut x = nums[0].width as i32;
         if !big {
             y = y * 2 + 2;
             x *= 5;
         } else {
-            y = y + self.lil_nums[0].height as i32 * f + 1;
+            y = y + self.lil_nums[0].height as i32 + 1;
             x *= 4;
         }
         if face {
-            x += self.faces.get_face().width as i32 * f + 1;
+            x += self.faces.get_face().width as i32 + 1;
         }
 
         let h = if self.status.health < 0 {
@@ -99,16 +100,15 @@ impl Statusbar {
         if self.status.armorpoints <= 0 {
             return;
         }
-        let f = pixels.size().height() / 200;
 
         let nums = &self.lil_nums;
 
-        let mut y = nums[0].height as i32 * f;
-        let mut x = nums[0].width as i32 * f;
+        let mut y = nums[0].height as i32;
+        let mut x = nums[0].width as i32;
         y += 1;
         x *= 5;
         if face {
-            x += self.faces.get_face().width as i32 * f + 1;
+            x += self.faces.get_face().width as i32 + 1;
         }
 
         let h = self.status.armorpoints as u32;
@@ -135,15 +135,14 @@ impl Statusbar {
         if ammo == AmmoType::NoAmmo {
             return;
         }
-        let f = pixels.size().height() / 200;
 
-        let height = self.big_nums[0].height as i32 * f;
-        let start_x = self.big_nums[0].width as i32 * f + self.keys[0].width as i32 * f + 2;
+        let height = self.big_nums[0].height as i32;
+        let start_x = self.big_nums[0].width as i32 + self.keys[0].width as i32 + 2;
         let ammo = self.status.ammo[ammo as usize];
         draw_num_pixels(
             ammo,
             self.screen_width - start_x,
-            self.screen_height - 2 - height - self.grey_nums[0].height as i32 * f,
+            self.screen_height - 2 - height - self.grey_nums[0].height as i32,
             0,
             &self.big_nums,
             self,
@@ -152,9 +151,8 @@ impl Statusbar {
     }
 
     fn draw_keys_pixels(&self, pixels: &mut impl PixelBuffer) {
-        let f = pixels.size().height() / 200;
-        let height = self.keys[3].height as i32 * f;
-        let width = self.keys[0].width as i32 * f;
+        let height = self.keys[3].height as i32;
+        let width = self.keys[0].width as i32;
 
         let skull_x = self.screen_width - width - 4;
         let mut x = skull_x - width - 2;
@@ -165,7 +163,7 @@ impl Statusbar {
                 continue;
             }
 
-            let height = self.keys[3].height as i32 * f;
+            let height = self.keys[3].height as i32;
             let patch = &self.keys[i];
             let mut pad = 0;
             if i > 2 {
@@ -184,18 +182,17 @@ impl Statusbar {
     }
 
     fn draw_weapons_pixels(&self, pixels: &mut impl PixelBuffer) {
-        let f = pixels.size().height() / 200;
-        let y = self.grey_nums[0].height as i32 * f;
-        let x = self.grey_nums[0].width as i32 * f;
+        let y = self.grey_nums[0].height as i32;
+        let x = self.grey_nums[0].width as i32;
         let mult = if self.mode == GameMode::Commercial {
             10
         } else {
             9
         };
         let start_x = self.screen_width
-            - self.grey_nums[0].width as i32 * f * mult // align with big ammo
-            - self.big_nums[0].width as i32 * f
-            - self.keys[0].width as i32 * f - 2;
+            - self.grey_nums[0].width as i32 * mult // align with big ammo
+            - self.big_nums[0].width as i32
+            - self.keys[0].width as i32 - 2;
         let start_y = self.screen_height - y - 2;
 
         for (i, owned) in self.status.weaponowned.iter().enumerate() {
@@ -220,7 +217,6 @@ impl Statusbar {
     }
 
     fn draw_face_pixels(&self, mut big: bool, upper: bool, pixels: &mut impl PixelBuffer) {
-        let f = pixels.size().height() / 200;
         if upper {
             big = true;
         }
@@ -239,20 +235,9 @@ impl Statusbar {
         };
 
         let patch = self.faces.get_face();
-
-        let offset_x = (patch.width as i32 * f) / 2;
-        let offset_y = patch.height as i32 * f;
-        if upper || big {
-            x = self.screen_width / 2 - patch.width as i32 / 2;
-            y = if upper {
-                1
-            } else {
-                self.screen_height - patch.height as i32
-            };
-        } else {
-            x = offset_x;
-            y = self.screen_height - offset_y
-        };
+        let offset_y = patch.height as i32;
+        x = (self.screen_width / 2) - ((patch.width as i32) / 2) + (patch.left_offset as i32);
+        y = self.screen_height - offset_y;
         self.draw_patch_pixels(patch, x, y, pixels);
     }
 }
@@ -275,8 +260,9 @@ impl SubsystemTrait for Statusbar {
     }
 
     fn draw(&mut self, buffer: &mut impl PixelBuffer) {
-        self.screen_width = buffer.size().width();
-        self.screen_height = buffer.size().height();
+        self.screen_width = 320;
+        self.screen_height = 200;
+        self.draw_patch_pixels(&self.background, 0, 200 - 32, buffer);
 
         let face = true;
         if face {

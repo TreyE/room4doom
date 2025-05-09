@@ -337,30 +337,24 @@ impl MenuDoom {
     }
 
     fn draw_pixels(&mut self, pixels: &mut impl PixelBuffer) {
-        let f = pixels.size().height() / 200;
-
         if self.active || self.in_help {
             let active = &self.menus[self.current_menu as usize];
             // Titles
             for item in active.titles.iter() {
-                self.draw_patch_pixels(self.get_patch(&item.patch), item.x * f, item.y * f, pixels);
+                self.draw_patch_pixels(self.get_patch(&item.patch), item.x, item.y, pixels);
             }
             // sub-items
-            let x = active.x * f;
-            let mut y = active.y * f;
+            let x = active.x; // * f;
+            let mut y = active.y; // * f;
             for item in active.items.iter() {
                 self.draw_patch_pixels(self.get_patch(&item.patch), x, y, pixels);
-                y += LINEHEIGHT * f;
+                y += LINEHEIGHT; // * f;
             }
 
             // SKULL
-            let y = active.y * f - 5 + active.last_on as i32 * LINEHEIGHT * f;
-            self.draw_patch_pixels(
-                self.get_patch(SKULLS[self.which_skull]),
-                x + -(32 * f),
-                y,
-                pixels,
-            );
+            //let y = active.y * f - 5 + active.last_on as i32 * LINEHEIGHT * f;
+            let y = active.y - 5 + active.last_on as i32 * LINEHEIGHT;
+            self.draw_patch_pixels(self.get_patch(SKULLS[self.which_skull]), x - 32, y, pixels);
         }
     }
 }
