@@ -69,16 +69,13 @@ impl Statusbar {
         let nums = if big { &self.big_nums } else { &self.lil_nums };
 
         let mut y = nums[0].height as i32;
-        let mut x = nums[0].width as i32;
+        let mut x = 50 as i32;
         if !big {
             y = y * 2 + 2;
             x *= 5;
         } else {
             y = y + self.lil_nums[0].height as i32 + 1;
-            x *= 4;
-        }
-        if face {
-            x += self.faces.get_face().width as i32 + 1;
+            //x *= 4;
         }
 
         let h = if self.status.health < 0 {
@@ -88,10 +85,10 @@ impl Statusbar {
         };
 
         if h < 100 {
-            x -= nums[0].width as i32;
+            x += nums[0].width as i32;
         }
         if h < 10 {
-            x -= nums[0].width as i32;
+            x += nums[0].width as i32;
         }
         draw_num_pixels(h, x, self.screen_height - 2 - y, 0, nums, self, pixels);
     }
@@ -136,13 +133,20 @@ impl Statusbar {
             return;
         }
 
-        let height = self.big_nums[0].height as i32;
-        let start_x = self.big_nums[0].width as i32 + self.keys[0].width as i32 + 2;
+        let height = self.big_nums[0].height as i32 + self.lil_nums[0].height as i32 + 1;
+        let mut start_x = 0 as i32;
         let ammo = self.status.ammo[ammo as usize];
+        if ammo < 100 {
+            start_x += self.big_nums[0].width as i32;
+        }
+        if ammo < 10 {
+            start_x += self.big_nums[0].width as i32;
+        }
+
         draw_num_pixels(
             ammo,
-            self.screen_width - start_x,
-            self.screen_height - 2 - height - self.grey_nums[0].height as i32,
+            start_x,
+            self.screen_height - 2 - (height as i32),
             0,
             &self.big_nums,
             self,

@@ -40,18 +40,17 @@ pub fn draw_num_pixels(
     drawer: &impl SubsystemTrait,
     pixels: &mut impl PixelBuffer,
 ) -> i32 {
-    let f = pixels.size().height() / 200;
-    let width = nums[0].width as i32 * f;
+    let width = nums[0].width as i32;
     let digits: Vec<u32> = p
         .to_string()
         .chars()
         .map(|d| d.to_digit(10).unwrap())
         .collect();
 
-    for n in digits.iter().rev() {
-        x -= width;
+    for n in digits.iter() {
         let num = &nums[*n as usize];
         drawer.draw_patch_pixels(num, x, y, pixels);
+        x += width;
     }
     if digits.len() <= pad {
         for _ in 0..=pad - digits.len() {
