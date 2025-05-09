@@ -125,9 +125,8 @@ impl HUDString {
         machination: &impl SubsystemTrait,
         pixels: &mut impl PixelBuffer,
     ) -> Option<()> {
-        let f = pixels.size().height() / 200;
-        let width = pixels.size().width();
-        let height = pixels.size().height();
+        let width = 320;
+        let height = 200;
         let start_x = x;
 
         for (i, ch) in self.data.chars().enumerate() {
@@ -147,7 +146,7 @@ impl HUDString {
 
                 if x + len * self.space_width + self.space_width >= width {
                     x = start_x;
-                    y += self.line_height * f;
+                    y += self.line_height;
                 } else {
                     x += self.space_width;
                 }
@@ -156,12 +155,12 @@ impl HUDString {
 
             if ch == '\n' {
                 x = start_x;
-                y += self.line_height * f;
+                y += self.line_height;
                 continue;
             }
 
             let patch = get_patch_for_char(ch).unwrap_or_else(|| panic!("Did not find {ch}"));
-            if y + self.line_height * f >= height {
+            if y + self.line_height >= height {
                 warn!("HUD String to long for screen size");
                 return None;
             }
@@ -169,10 +168,10 @@ impl HUDString {
             machination.draw_patch_pixels(
                 patch,
                 x,
-                y + self.line_height * f - patch.height as i32 * f,
+                y + self.line_height - patch.height as i32,
                 pixels,
             );
-            x += patch.width as i32 * f;
+            x += patch.width as i32;
         }
         Some(())
     }
