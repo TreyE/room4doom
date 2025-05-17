@@ -29,6 +29,7 @@ pub struct Statusbar {
     mode: GameMode,
     palette: WadPalette,
     background: WadPatch,
+    arms: WadPatch,
     patches: HashMap<&'static str, WadPatch>,
     /// Nums, index is the actual number
     big_nums: [WadPatch; 11],
@@ -39,6 +40,59 @@ pub struct Statusbar {
     keys: [WadPatch; 6],
     status: PlayerStatus,
     faces: DoomguyFace,
+}
+
+struct WeaponDisplayLocation {
+    row: i32,
+    column: i32,
+    number: i32,
+}
+
+impl From<WeaponType> for WeaponDisplayLocation {
+    fn from(value: WeaponType) -> Self {
+        match value {
+            WeaponType::Pistol => WeaponDisplayLocation {
+                row: 0,
+                column: 0,
+                number: 2,
+            },
+            WeaponType::Shotgun => WeaponDisplayLocation {
+                row: 0,
+                column: 1,
+                number: 3,
+            },
+            WeaponType::SuperShotgun => WeaponDisplayLocation {
+                row: 0,
+                column: 1,
+                number: 3,
+            },
+            WeaponType::Chaingun => WeaponDisplayLocation {
+                row: 0,
+                column: 2,
+                number: 4,
+            },
+            WeaponType::Missile => WeaponDisplayLocation {
+                row: 1,
+                column: 0,
+                number: 5,
+            },
+            WeaponType::Plasma => WeaponDisplayLocation {
+                row: 1,
+                column: 1,
+                number: 6,
+            },
+            WeaponType::BFG => WeaponDisplayLocation {
+                row: 1,
+                column: 2,
+                number: 7,
+            },
+            _ => WeaponDisplayLocation {
+                row: 0,
+                column: 0,
+                number: 0,
+            },
+        }
+    }
 }
 
 impl Statusbar {
@@ -62,6 +116,7 @@ impl Statusbar {
             palette,
             patches,
             background: WadPatch::from_lump(wad.get_lump("STBAR").unwrap()),
+            arms: WadPatch::from_lump(wad.get_lump("STARMS").unwrap()),
             big_nums: get_large_percent_sprites(wad),
             lil_nums: get_small_percent_sprites(wad),
             grey_nums: get_num_sprites("STGNUM", 0, wad),
@@ -201,37 +256,41 @@ impl Statusbar {
     }
 
     fn draw_weapons_pixels(&self, pixels: &mut impl PixelBuffer) {
-        let y = self.grey_nums[0].height as i32;
-        let x = self.grey_nums[0].width as i32;
-        let mult = if self.mode == GameMode::Commercial {
-            10
-        } else {
-            9
-        };
-        let start_x = self.screen_width
-            - self.grey_nums[0].width as i32 * mult // align with big ammo
-            - self.big_nums[0].width as i32
-            - self.keys[0].width as i32 - 2;
-        let start_y = self.screen_height - y - 2;
+        let arms_x = self.status_left + self.arms.left_offset as i32 + 103;
+
+        self.draw_patch_pixels(&self.arms, arms_x, self.status_top, pixels);
+
+        let y = 10 as i32;
+        let x = 12;
+        let start_x = arms_x + 7;
+        let start_y = self.status_top + 4;
 
         for (i, owned) in self.status.weaponowned.iter().enumerate() {
+            let wt: WeaponType = (i as u8).into();
+            let wdl: WeaponDisplayLocation = wt.into();
+            let c_wdl: WeaponDisplayLocation = self.status.readyweapon.into();
             if !(self.mode == GameMode::Commercial) && i == 8 || !*owned {
                 continue;
             }
-            let nums = if self.status.readyweapon as usize == i {
-                &self.yell_nums
-            } else {
-                &self.grey_nums
-            };
-            draw_num_pixels(
-                i as u32 + 1,
-                start_x + x * i as i32 + i as i32,
-                start_y,
-                0,
-                nums,
-                self,
-                pixels,
-            );
+            if *owned {
+                if wdl.number < 2 || wdl.number > 7 {
+                    continue;
+                }
+                let nums = if wdl.number == c_wdl.number {
+                    &self.yell_nums
+                } else {
+                    &self.grey_nums
+                };
+                draw_num_pixels(
+                    wdl.number as u32,
+                    start_x + (x * wdl.column) as i32,
+                    start_y + y * wdl.row,
+                    0,
+                    nums,
+                    self,
+                    pixels,
+                );
+            }
         }
     }
 
