@@ -15,6 +15,37 @@ pub fn get_num_sprites(pattern: &str, start: usize, wad: &WadData) -> [WadPatch;
     nums
 }
 
+pub fn get_small_percent_sprites(wad: &WadData) -> [WadPatch; 11] {
+    let start = 48;
+    let mut nums: [WadPatch; 11] = [WAD_PATCH; 11];
+    for (i, num) in nums.iter_mut().enumerate() {
+        let p = i + start;
+        if i == 10 {
+            let lump = wad.get_lump(&format!("STCFN037")).unwrap();
+            *num = WadPatch::from_lump(lump);
+        } else {
+            let lump = wad.get_lump(&format!("STCFN0{p}")).unwrap();
+            *num = WadPatch::from_lump(lump);
+        }
+    }
+    nums
+}
+
+pub fn get_large_percent_sprites(wad: &WadData) -> [WadPatch; 11] {
+    let mut nums: [WadPatch; 11] = [WAD_PATCH; 11];
+    for (i, num) in nums.iter_mut().enumerate() {
+        let p = i;
+        if i == 10 {
+            let lump = wad.get_lump(&format!("STTPRCNT")).unwrap();
+            *num = WadPatch::from_lump(lump);
+        } else {
+            let lump = wad.get_lump(&format!("STTNUM{p}")).unwrap();
+            *num = WadPatch::from_lump(lump);
+        }
+    }
+    nums
+}
+
 pub fn get_st_key_sprites(wad: &WadData) -> [WadPatch; 6] {
     let mut keys: [MaybeUninit<WadPatch>; 6] = [
         MaybeUninit::uninit(),
@@ -29,6 +60,31 @@ pub fn get_st_key_sprites(wad: &WadData) -> [WadPatch; 6] {
         *key = MaybeUninit::new(WadPatch::from_lump(lump));
     }
     unsafe { keys.map(|n| n.assume_init()) }
+}
+
+pub fn draw_percent_pixels(
+    p: u32,
+    mut x: i32,
+    y: i32,
+    nums: &[WadPatch],
+    drawer: &impl SubsystemTrait,
+    pixels: &mut impl PixelBuffer,
+) -> i32 {
+    let width = nums[0].width as i32;
+    let digits: Vec<u32> = p
+        .to_string()
+        .chars()
+        .map(|d| d.to_digit(10).unwrap())
+        .collect();
+
+    for n in digits.iter() {
+        let num = &nums[*n as usize];
+        drawer.draw_patch_pixels(num, x, y, pixels);
+        x += width;
+    }
+    drawer.draw_patch_pixels(&nums[10 as usize], x, y, pixels);
+    x += width;
+    x
 }
 
 pub fn draw_num_pixels(
