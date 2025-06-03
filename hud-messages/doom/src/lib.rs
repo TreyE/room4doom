@@ -64,8 +64,6 @@ impl Messages {
     }
 
     pub fn draw_wrapped(&self, machination: &impl SubsystemTrait, buffer: &mut impl PixelBuffer) {
-        let f = buffer.size().height() / 200;
-
         let x = 10;
         let mut y = 2;
         let mut pos = self.start;
@@ -82,7 +80,7 @@ impl Messages {
             }
 
             self.lines[pos].draw(x, y, machination, buffer);
-            y += self.lines[pos].line_height() * f + 1;
+            y += self.lines[pos].line_height() + 1;
 
             if pos == self.current {
                 break;

@@ -177,8 +177,9 @@ impl InputEvents {
         let mousey = self.mouse_delta.1;
 
         if true {
-            // TODO: invert settings
-            cmd.lookdir = -(mousey) as i16;
+            // TODO: invert settings - disabled until we have a setting for
+            //       mouse movement
+            // cmd.lookdir = -(mousey) as i16;
         } else {
             forward += -self.mouse_delta.1;
         }

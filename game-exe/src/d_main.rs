@@ -38,7 +38,7 @@ use intermission_doom::Intermission;
 use menu_doom::MenuDoom;
 use render_target::RenderTarget;
 use sound_traits::SoundAction;
-use statusbar_doom::Statusbar;
+use statusbar_doom::ClassicStatusbar;
 use wad::types::WadPatch;
 
 use crate::CLIOptions;
@@ -105,7 +105,7 @@ pub fn d_doom_loop(
     menu.init(&game);
 
     let mut machines = GameSubsystem {
-        statusbar: Statusbar::new(game.game_type.mode, &game.wad_data),
+        statusbar: ClassicStatusbar::new(game.game_type.mode, &game.wad_data),
         intermission: Intermission::new(game.game_type.mode, &game.wad_data),
         hud_msgs: Messages::new(&game.wad_data),
         finale: Finale::new(&game.wad_data),
