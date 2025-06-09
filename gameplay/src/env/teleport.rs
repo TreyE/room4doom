@@ -1,13 +1,13 @@
 use std::ptr;
 
-use glam::Vec2;
-
 use crate::info::MapObjKind;
 use crate::level::map_defs::LineDef;
 use crate::thinker::ThinkerData;
 use crate::{Level, MapObject, MapPtr, Sector};
 
 use crate::thing::MapObjFlag;
+
+use math::{FT_ZERO, VecF2, fixed_t};
 
 /// Doom function name `EV_Teleport`
 pub fn teleport(
@@ -57,7 +57,7 @@ pub fn teleport(
                 let fog = MapObject::spawn_map_object(
                     old_xy.x,
                     old_xy.y,
-                    old_z as i32,
+                    old_z,
                     MapObjKind::MT_TFOG,
                     level,
                 );
@@ -67,9 +67,9 @@ pub fn teleport(
 
                 let an = endpoint.angle;
                 let fog = MapObject::spawn_map_object(
-                    endpoint.xy.x + 20.0 * an.cos(),
-                    endpoint.xy.y + 20.0 * an.sin(),
-                    endpoint.z as i32,
+                    endpoint.xy.x + fixed_t::from_int(20) * an.cos(),
+                    endpoint.xy.y + fixed_t::from_int(20) * an.sin(),
+                    endpoint.z,
                     MapObjKind::MT_TFOG,
                     level,
                 );
@@ -81,8 +81,8 @@ pub fn teleport(
                     thing.reactiontime = 18;
                 }
                 thing.angle = endpoint.angle;
-                thing.momxy = Vec2::default();
-                thing.momz = 0.0;
+                thing.momxy = VecF2::default();
+                thing.momz = FT_ZERO;
 
                 return true;
             }
@@ -93,7 +93,7 @@ pub fn teleport(
 }
 
 /// Doom function nam `P_TeleportMove`
-pub fn teleport_move(xy: Vec2, thing: &mut MapObject, level: &mut Level) -> bool {
+pub fn teleport_move(xy: VecF2, thing: &mut MapObject, level: &mut Level) -> bool {
     let new_subsect = &mut *level.map_data.point_in_subsector_raw(xy);
     let floorz = new_subsect.sector.floorheight;
     let ceilzz = new_subsect.sector.ceilingheight;
@@ -114,7 +114,7 @@ pub fn teleport_move(xy: Vec2, thing: &mut MapObject, level: &mut Level) -> bool
 
 fn telefrag(
     this_thing: &mut MapObject,
-    new_xy: Vec2,
+    new_xy: VecF2,
     sector: &mut Sector,
     game_map: usize,
 ) -> bool {

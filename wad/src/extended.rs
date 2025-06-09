@@ -3,6 +3,8 @@ use log::warn;
 use crate::types::{WadNode, WadSegment, WadSubSector, WadVertex};
 use crate::{Lump, MapLump, WadData};
 
+use math::fixed_t;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExtendedNodeType {
     XNOD,
@@ -144,9 +146,9 @@ impl WadExtendedMap {
         // The vertices are in fixed-point format and will require conversion later
         // Each vert is x,y, where x and y are 4 bytes each
         while ofs < end {
-            let v1 = lump.read_u32_to_f32(ofs);
-            let v2 = lump.read_u32_to_f32(ofs + 4);
-            vertexes.push(WadVertex::new(v1, v2));
+            let v1 = lump.read_i32(ofs);
+            let v2 = lump.read_i32(ofs + 4);
+            vertexes.push(WadVertex::new(fixed_t::new(v1), fixed_t::new(v2)));
             ofs += 8;
         }
         debug_assert_eq!(vertexes.len(), num_new_vertices);

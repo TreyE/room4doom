@@ -9,7 +9,10 @@ use glam::Vec2;
 #[cfg(Debug)]
 use log::error;
 use log::{debug, warn};
-use math::{Angle, bam_to_radian, circle_line_collide, fixed_to_float};
+use math::{
+    ANG90, Angle, FT_ONE, FT_TWO, FT_ZERO, VecF2, bam_to_radian, circle_line_collide, fixed_t,
+    fixed_to_float, point_to_angle_2,
+};
 use wad::WadData;
 use wad::extended::{ExtendedNodeType, NodeLumpType, WadExtendedMap};
 use wad::types::*;
@@ -23,10 +26,10 @@ pub const IS_SSECTOR_MASK: u32 = 0x80000000;
 /// rectangle enclosing the level area
 #[derive(Default)]
 pub struct MapExtents {
-    pub min_vertex: Vec2,
-    pub max_vertex: Vec2,
-    pub width: f32,
-    pub height: f32,
+    pub min_vertex: VecF2,
+    pub max_vertex: VecF2,
+    pub width: fixed_t,
+    pub height: fixed_t,
     pub automap_scale: f32,
 }
 
@@ -46,7 +49,7 @@ pub struct MapData {
     /// array may never be resized or it will invalidate references and
     /// pointers
     things: Vec<WadThing>,
-    vertexes: Vec<Vec2>,
+    vertexes: Vec<VecF2>,
     pub linedefs: Vec<LineDef>,
     pub sectors: Vec<Sector>,
     sidedefs: Vec<SideDef>,
@@ -64,7 +67,7 @@ impl MapData {
         // set the min/max to first vertex so we have a baseline
         // that isn't 0 causing comparison issues, eg; if it's 0,
         // then a min vertex of -3542 won't be set since it's negative
-        let mut check = |v: Vec2| {
+        let mut check = |v: VecF2| {
             if self.extents.min_vertex.x > v.x {
                 self.extents.min_vertex.x = v.x;
             } else if self.extents.max_vertex.x < v.x {
@@ -122,14 +125,14 @@ impl MapData {
         &mut self.segments
     }
 
-    const fn set_scale(&mut self) {
+    fn set_scale(&mut self) {
         let map_width = self.extents.width;
         let map_height = self.extents.height;
 
         if map_height > map_width {
-            self.extents.automap_scale = map_height / 400.0 * 1.1;
+            self.extents.automap_scale = map_height.to_float() / 400.0 * 1.1;
         } else {
-            self.extents.automap_scale = map_width / 640.0 * 1.4;
+            self.extents.automap_scale = map_width.to_float() / 640.0 * 1.4;
         }
     }
 
@@ -198,14 +201,14 @@ impl MapData {
     fn load_vertexes(&mut self, map_name: &str, wad: &WadData, extended: Option<&WadExtendedMap>) {
         self.vertexes = wad
             .vertex_iter(map_name)
-            .map(|v| Vec2::new(v.x, v.y))
+            .map(|v| VecF2::new(v.x, v.y))
             .collect();
         info!("{}: Loaded {} vertexes", map_name, self.vertexes.len());
 
         if let Some(ext) = extended.as_ref() {
             self.vertexes.reserve(ext.vertexes.len());
             for v in ext.vertexes.iter() {
-                self.vertexes.push(Vec2::new(v.x, v.y));
+                self.vertexes.push(VecF2::new(v.x, v.y));
             }
             info!("{}: Loaded {} zdoom vertexes", map_name, ext.vertexes.len());
         }
@@ -218,8 +221,8 @@ impl MapData {
             .map(|(i, s)| {
                 Sector::new(
                     i as u32,
-                    s.floor_height as f32,
-                    s.ceil_height as f32,
+                    fixed_t::from_i16(s.floor_height),
+                    fixed_t::from_i16(s.ceil_height),
                     pic_data.flat_num_for_name(&s.floor_tex).unwrap_or_else(|| {
                         warn!("Sectors: Did not find flat for {}", s.floor_tex);
                         // usize::MAX
@@ -249,8 +252,8 @@ impl MapData {
             .map(|s| {
                 let sector = &mut self.sectors[s.sector as usize];
                 SideDef {
-                    textureoffset: s.x_offset as f32,
-                    rowoffset: s.y_offset as f32,
+                    textureoffset: fixed_t::from_i16(s.x_offset),
+                    rowoffset: fixed_t::from_i16(s.y_offset),
                     toptexture: tex_order
                         .iter()
                         .position(|n| n.name == s.upper_tex.to_ascii_uppercase()),
@@ -302,11 +305,11 @@ impl MapData {
                 let dx = v2.x - v1.x;
                 let dy = v2.y - v1.y;
 
-                let slope = if dx == 0.0 {
+                let slope = if dx == FT_ZERO {
                     SlopeType::Vertical
-                } else if dy == 0.0 {
+                } else if dy == FT_ZERO {
                     SlopeType::Horizontal
-                } else if dy / dx > 0.0 {
+                } else if dy / dx > FT_ZERO {
                     SlopeType::Positive
                 } else {
                     SlopeType::Negative
@@ -315,7 +318,7 @@ impl MapData {
                 LineDef {
                     v1,
                     v2,
-                    delta: Vec2::new(dx, dy),
+                    delta: VecF2::new(dx, dy),
                     flags: l.flags as u32,
                     special: l.special,
                     tag: l.sector_tag,
@@ -361,18 +364,16 @@ impl MapData {
             let linedef = MapPtr::new(&mut self.linedefs[ms.linedef as usize]);
 
             let angle = if extended.is_none() {
-                Angle::new(bam_to_radian((ms.angle as u32) << 16))
+                Angle::new((ms.angle as u32) << 16)
             } else {
-                let dx = v2.x - v1.x;
-                let dy = v2.y - v1.y;
-                Angle::new(Vec2::new(dx, dy).to_angle())
+                point_to_angle_2(v1, v2)
             };
 
             let offset = if ms.offset == i16::MIN {
                 let v2 = if ms.side == 1 { linedef.v2 } else { linedef.v1 };
                 Segment::recalc_offset(v1, v2)
             } else {
-                ms.offset as f32
+                fixed_t::from_i16(ms.offset)
             };
             let sidedef = MapPtr::new(&mut self.sidedefs[linedef.sides[ms.side as usize] as usize]);
             let frontsector = sidedef.sector.clone();
@@ -456,8 +457,8 @@ impl MapData {
     fn load_blockmap(&mut self, map_name: &str, wad: &WadData) {
         if let Some(wadblock) = wad.read_blockmap(map_name) {
             let mut blockmap = Blockmap {
-                x_origin: fixed_to_float(wadblock.x_origin as i32),
-                y_origin: fixed_to_float(wadblock.y_origin as i32),
+                x_origin: fixed_t::from_i16(wadblock.x_origin),
+                y_origin: fixed_t::from_i16(wadblock.y_origin),
                 columns: wadblock.columns as usize,
                 rows: wadblock.rows as usize,
                 lines: Vec::with_capacity(wadblock.line_indexes.len()),
@@ -502,17 +503,29 @@ impl MapData {
         let parse_nodes = |n: WadNode| {
             let bounding_boxes = [
                 [
-                    Vec2::new(n.bboxes[0][2] as f32, n.bboxes[0][0] as f32),
-                    Vec2::new(n.bboxes[0][3] as f32, n.bboxes[0][1] as f32),
+                    VecF2::new(
+                        fixed_t::from_i16(n.bboxes[0][2]),
+                        fixed_t::from_i16(n.bboxes[0][0]),
+                    ),
+                    VecF2::new(
+                        fixed_t::from_i16(n.bboxes[0][3]),
+                        fixed_t::from_i16(n.bboxes[0][1]),
+                    ),
                 ],
                 [
-                    Vec2::new(n.bboxes[1][2] as f32, n.bboxes[1][0] as f32),
-                    Vec2::new(n.bboxes[1][3] as f32, n.bboxes[1][1] as f32),
+                    VecF2::new(
+                        fixed_t::from_i16(n.bboxes[1][2]),
+                        fixed_t::from_i16(n.bboxes[1][0]),
+                    ),
+                    VecF2::new(
+                        fixed_t::from_i16(n.bboxes[1][3]),
+                        fixed_t::from_i16(n.bboxes[1][1]),
+                    ),
                 ],
             ];
             Node {
-                xy: Vec2::new(n.x as f32, n.y as f32),
-                delta: Vec2::new(n.dx as f32, n.dy as f32),
+                xy: VecF2::new(fixed_t::from_i16(n.x), fixed_t::from_i16(n.y)),
+                delta: VecF2::new(fixed_t::from_i16(n.dx), fixed_t::from_i16(n.dy)),
                 bboxes: bounding_boxes,
                 children: n.children,
             }
@@ -554,7 +567,7 @@ impl MapData {
     /// objects.
     ///
     /// Doom function name  `R_PointInSubsector`
-    pub fn point_in_subsector_raw(&mut self, point: Vec2) -> MapPtr<SubSector> {
+    pub fn point_in_subsector_raw(&mut self, point: VecF2) -> MapPtr<SubSector> {
         let mut node_id = self.start_node();
         let mut node;
         let mut side;
@@ -574,7 +587,7 @@ impl MapData {
         MapPtr::new(&mut self.subsectors[(node_id ^ IS_SSECTOR_MASK) as usize])
     }
 
-    pub fn point_in_subsector(&mut self, point: Vec2) -> &SubSector {
+    pub fn point_in_subsector(&mut self, point: VecF2) -> &SubSector {
         let mut node_id = self.start_node();
         let mut node;
         let mut side;
@@ -637,10 +650,10 @@ impl MapData {
         let start = Instant::now();
         // Track vertices. Because they are stored in segs now, but originally came
         // from the shared vertices we need to ensure the individual vertexes match
-        let mut log: HashMap<String, Vec2> = HashMap::with_capacity(self.vertexes.len());
+        let mut log: HashMap<String, VecF2> = HashMap::with_capacity(self.vertexes.len());
         for seg in self.segments.iter_mut() {
             let linedef = seg.linedef.as_mut();
-            if linedef.delta.x != 0.0 && linedef.delta.y != 0.0 {
+            if linedef.delta.x != FT_ZERO && linedef.delta.y != FT_ZERO {
                 let mut old = seg.v1;
                 let mut vertex = &mut seg.v1;
                 let mut step2 = false;
@@ -683,7 +696,7 @@ pub fn set_sector_sound_origin(sector: &mut Sector) {
     let mut maxx = sector.lines[0].v2.x;
     let mut maxy = sector.lines[0].v2.y;
 
-    let mut check = |v: Vec2| {
+    let mut check = |v: VecF2| {
         if minx > v.x {
             minx = v.x;
         } else if maxx < v.x {
@@ -701,7 +714,10 @@ pub fn set_sector_sound_origin(sector: &mut Sector) {
         check(line.v1);
         check(line.v2);
     }
-    sector.sound_origin = Vec2::new(minx + ((maxx - minx) / 2.0), miny + ((maxy - miny) / 2.0));
+    sector.sound_origin = VecF2::new(
+        minx + ((maxx - minx) / FT_TWO),
+        miny + ((maxy - miny) / FT_TWO),
+    );
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -717,13 +733,13 @@ impl Default for BSPTraceType {
 }
 
 pub struct BSPTrace {
-    radius: f32,
-    pub origin: Vec2,
-    origin_left: Vec2,
-    origin_right: Vec2,
-    pub endpoint: Vec2,
-    endpoint_left: Vec2,
-    endpoint_right: Vec2,
+    radius: fixed_t,
+    pub origin: VecF2,
+    origin_left: VecF2,
+    origin_right: VecF2,
+    pub endpoint: VecF2,
+    endpoint_left: VecF2,
+    endpoint_right: VecF2,
     pub nodes: Vec<u32>,
     /// If it is a line_trace. If not then it is a radius trace.
     trace_type: BSPTraceType,
@@ -733,11 +749,11 @@ impl BSPTrace {
     /// Setup the trace for a line trace. Use `find_line_intercepts()` to find
     /// all intersections.
     #[inline]
-    pub fn new_line(origin: Vec2, endpoint: Vec2, radius: f32) -> Self {
-        let forward = Angle::from_vector(endpoint - origin);
-        let back = Angle::from_vector(origin - endpoint);
-        let left_rad_vec = (forward + FRAC_PI_2).unit() * radius;
-        let right_rad_vec = (forward - FRAC_PI_2).unit() * radius;
+    pub fn new_line(origin: VecF2, endpoint: VecF2, radius: fixed_t) -> Self {
+        let forward = point_to_angle_2(origin, endpoint);
+        let back = point_to_angle_2(endpoint, origin);
+        let left_rad_vec = (forward + Angle::new(ANG90)).unit() * radius;
+        let right_rad_vec = (forward - Angle::new(ANG90)).unit() * radius;
 
         Self {
             origin: origin + back.unit() * radius,
@@ -753,16 +769,16 @@ impl BSPTrace {
     }
 
     #[inline]
-    pub const fn new_radius(origin: Vec2, radius: f32) -> Self {
+    pub const fn new_radius(origin: VecF2, radius: fixed_t) -> Self {
         Self {
             origin,
             radius,
             trace_type: BSPTraceType::Radius,
-            origin_left: Vec2::new(0., 0.),
-            origin_right: Vec2::new(0., 0.),
-            endpoint: Vec2::new(0., 0.),
-            endpoint_left: Vec2::new(0., 0.),
-            endpoint_right: Vec2::new(0., 0.),
+            origin_left: VecF2::new(FT_ZERO, FT_ZERO),
+            origin_right: VecF2::new(FT_ZERO, FT_ZERO),
+            endpoint: VecF2::new(FT_ZERO, FT_ZERO),
+            endpoint_left: VecF2::new(FT_ZERO, FT_ZERO),
+            endpoint_right: VecF2::new(FT_ZERO, FT_ZERO),
             nodes: Vec::new(),
         }
     }
@@ -815,7 +831,7 @@ impl BSPTrace {
             // gives an ordered list of nodes from closest to furtherest.
             self.find_line_inner(node.children[side1], map, count);
             self.find_line_inner(node.children[side2], map, count);
-        } else if self.radius > 1.0 {
+        } else if self.radius > FT_ONE {
             let side_l1 = node.point_on_side(&self.origin_left);
             let side_l2 = node.point_on_side(&self.endpoint_left);
 

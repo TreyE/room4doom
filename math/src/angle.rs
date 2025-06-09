@@ -1,301 +1,132 @@
-use glam::Vec2;
-use std::f32::consts::TAU;
-use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Shr, Sub, SubAssign};
 
-use crate::trig::{COS_TABLE, SIN_TABLE, TAN_TABLE};
+use crate::{
+    FRACBITS, FRACUNIT, FloatAngle, VecF2, fixed_t,
+    trig::{COS_TABLE, SIN_TABLE},
+};
 
-#[derive(Debug, Default, Copy, Clone, PartialEq)]
-pub struct Angle(f32);
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
+pub struct Angle(pub u32);
+
+pub const ANG45: u32 = 0x20000000;
+pub const ANG90: u32 = 0x40000000;
+pub const ANG180: u32 = 0x80000000;
+pub const ANG270: u32 = 0xc0000000;
+pub const ANG5: u32 = ANG45 / 45 * 5;
+pub const FINEANGLES: u32 = 8192;
+pub const FINEMASK: u32 = FINEANGLES - 1;
+
+pub const ANG1: u32 = ANG45 / 45;
+
+const DEG_TO_RAD: f32 = std::f32::consts::PI / 180.0;
+/*
+
+#define ANG135  0x60000000
+#define ANG225  0xa0000000
+#define ANG315  0xe0000000
+#define ANG1      (ANG45/45)
+#define ANG60     (ANG180 / 3)
+#define ANGLE_MAX 0xffffffff
+#ifndef M_PI
+#define M_PI    3.14159265358979323846
+#endif
+
+#define FIXED_PI 205887
+*/
 
 impl Angle {
-    /// Will always wrap < 0 to > PI
-    #[inline]
-    pub const fn new(mut radians: f32) -> Self {
-        radians = radians % TAU;
-        if radians < 0.0 {
-            radians += TAU;
-        }
-        Angle(radians)
+    pub const fn to_float_angle(self) -> FloatAngle {
+        FloatAngle::new((self.0 as f32 * 8.381_903e-8) * DEG_TO_RAD)
+    }
+
+    pub const fn from_int(v: i32) -> Self {
+        Self::new(v as u32)
+    }
+
+    pub const fn from_i16(v: i16) -> Self {
+        Self::new(((v as i32) << FRACBITS) as u32)
+    }
+
+    pub const fn new(v: u32) -> Self {
+        Angle(v)
+    }
+
+    pub const fn to_fixed(self) -> fixed_t {
+        fixed_t::new((((self.0 as u64) << FRACBITS) / (ANG1 as u64)) as i32)
+    }
+
+    pub const fn to_table(self) -> usize {
+        (self.0 >> 19) as usize
     }
 
     #[inline]
-    const fn inner_wrap(&mut self) {
-        self.0 = self.0 % TAU;
-        if self.0 < 0.0 {
-            self.0 += TAU;
-        }
-    }
-
-    #[inline]
-    pub const fn rad(&self) -> f32 {
-        self.0
-    }
-
-    #[inline]
-    const fn to_table(&self) -> usize {
-        let mut idx = (self.0.to_degrees() * 22.7555556) as i32;
-        idx &= 8191;
-        if idx < 0 {
-            idx += 8192;
-        }
-        idx as usize
-    }
-
-    #[inline]
-    pub fn sin(&self) -> f32 {
-        self.0.sin()
-        // SIN_TABLE[self.to_table()]
-    }
-
-    #[inline]
-    pub const fn cos(&self) -> f32 {
-        // self.0.cos()
-        COS_TABLE[self.to_table()]
-    }
-
-    #[inline]
-    pub const fn tan(&self) -> f32 {
-        // self.0.tan()
-        TAN_TABLE[self.to_table()]
-    }
-
-    #[inline]
-    pub const fn sin_cos(&self) -> (f32, f32) {
+    pub const fn sin_cos(&self) -> (fixed_t, fixed_t) {
         let idx = self.to_table();
-        (SIN_TABLE[idx], COS_TABLE[idx])
+        (
+            fixed_t::from_float(SIN_TABLE[idx]),
+            fixed_t::from_float(COS_TABLE[idx]),
+        )
+    }
+
+    #[inline]
+    pub const fn sin(&self) -> fixed_t {
+        fixed_t::from_float(SIN_TABLE[self.to_table()])
+    }
+
+    #[inline]
+    pub const fn cos(&self) -> fixed_t {
+        fixed_t::from_float(COS_TABLE[self.to_table()])
     }
 
     #[inline(always)]
-    pub const fn unit(&self) -> Vec2 {
+    pub const fn unit(&self) -> VecF2 {
         let (y, x) = self.sin_cos();
-        Vec2::new(x, y)
+        VecF2::new(x, y)
     }
 
-    pub fn from_vector(input: Vec2) -> Self {
-        Angle::new(input.y.atan2(input.x))
+    pub const fn to_float(&self) -> f32 {
+        (self.0 as f32) / FRACUNIT
     }
+}
 
-    #[inline]
-    pub const fn sub_other(self, other: Angle) -> Angle {
-        Angle::new(self.0 - other.0)
+impl Sub for Angle {
+    type Output = Angle;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Angle::new(self.0.wrapping_sub(rhs.0))
+    }
+}
+
+impl std::cmp::PartialOrd for Angle {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.0.partial_cmp(&other.0)
     }
 }
 
 impl Add for Angle {
     type Output = Angle;
-    #[inline]
-    fn add(self, other: Angle) -> Angle {
-        Angle::new(self.0 + other.0)
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Angle::new(self.0.wrapping_add(rhs.0))
     }
 }
 
-impl Add<f32> for Angle {
+impl SubAssign<Angle> for Angle {
+    fn sub_assign(&mut self, rhs: Angle) {
+        self.0 = self.0.wrapping_sub(rhs.0)
+    }
+}
+
+impl AddAssign<Angle> for Angle {
+    fn add_assign(&mut self, rhs: Angle) {
+        self.0 = self.0.wrapping_add(rhs.0)
+    }
+}
+
+impl Shr<usize> for Angle {
     type Output = Angle;
-    #[inline]
-    fn add(self, other: f32) -> Angle {
-        Angle::new(self.0 + other)
+
+    fn shr(self, rhs: usize) -> Self::Output {
+        Angle::new(self.0 >> rhs)
     }
-}
-
-// impl Add<i32> for Angle {
-//     type Output = Angle;
-
-//
-//     fn add(self, other: i32) -> Angle {
-//         Angle::new(self.0 + (other as f32).to_radians())
-//     }
-// }
-
-impl AddAssign for Angle {
-    #[inline]
-    fn add_assign(&mut self, other: Angle) {
-        self.0 += other.0;
-        self.inner_wrap();
-    }
-}
-
-impl AddAssign<f32> for Angle {
-    #[inline]
-    fn add_assign(&mut self, other: f32) {
-        self.0 += other;
-        self.inner_wrap();
-    }
-}
-
-// impl AddAssign<i32> for Angle{
-//
-//     fn add_assign(&mut self, other: i32) {
-//         self.0 += (other as f32).to_radians();
-//         self.inner_wrap();
-//     }
-// }
-
-//
-
-impl Mul for Angle {
-    type Output = Angle;
-    #[inline]
-    fn mul(self, other: Angle) -> Angle {
-        Angle::new(self.0 * other.0)
-    }
-}
-
-impl Mul<f32> for Angle {
-    type Output = Angle;
-    #[inline]
-    fn mul(self, other: f32) -> Angle {
-        Angle::new(self.0 * other)
-    }
-}
-
-// impl Mul<i32> for Angle {
-//     type Output = Angle;
-
-//
-//     fn mul(self, other: i32) -> Angle {
-//         Angle::new(self.0 * (other as f32).to_radians())
-//     }
-// }
-
-impl MulAssign for Angle {
-    #[inline]
-    fn mul_assign(&mut self, other: Angle) {
-        self.0 *= other.0;
-        self.inner_wrap();
-    }
-}
-
-impl MulAssign<f32> for Angle {
-    #[inline]
-    fn mul_assign(&mut self, other: f32) {
-        self.0 *= other;
-        self.inner_wrap();
-    }
-}
-
-// impl MulAssign<i32> for Angle{
-//
-//     fn mul_assign(&mut self, other: i32) {
-//         self.0 *= (other as f32).to_radians();
-//         self.inner_wrap();
-//     }
-// }
-
-// negatives
-
-impl Sub for Angle {
-    type Output = Angle;
-    #[inline]
-    fn sub(self, other: Angle) -> Angle {
-        Angle::new(self.0 - other.0)
-    }
-}
-
-impl Sub<f32> for Angle {
-    type Output = Angle;
-    #[inline]
-    fn sub(self, other: f32) -> Angle {
-        Angle::new(self.0 - other)
-    }
-}
-
-// impl Sub<i32> for Angle {
-//     type Output = Angle;
-
-//
-//     fn sub(self, other: i32) -> Angle {
-//         Angle::new(self.0 - (other as f32).to_radians())
-//     }
-// }
-
-impl SubAssign for Angle {
-    #[inline]
-    fn sub_assign(&mut self, other: Angle) {
-        self.0 -= other.0;
-        self.inner_wrap();
-    }
-}
-
-impl SubAssign<f32> for Angle {
-    #[inline]
-    fn sub_assign(&mut self, other: f32) {
-        self.0 -= other;
-        self.inner_wrap();
-    }
-}
-
-// impl SubAssign<i32> for Angle{
-//
-//     fn sub_assign(&mut self, other: i32) {
-//         self.0 -= (other as f32).to_radians();
-//         self.inner_wrap();
-//     }
-// }
-
-//
-
-impl Div for Angle {
-    type Output = Angle;
-    #[inline]
-    fn div(self, other: Angle) -> Angle {
-        Angle::new(self.0 / other.0)
-    }
-}
-
-impl Div<f32> for Angle {
-    type Output = Angle;
-    #[inline]
-    fn div(self, other: f32) -> Angle {
-        Angle::new(self.0 / other)
-    }
-}
-
-// impl Div<i32> for Angle {
-//     type Output = Angle;
-
-//
-//     fn div(self, other: i32) -> Angle {
-//         Angle::new(self.0 / (other as f32).to_radians()
-//     }
-// }
-
-impl DivAssign for Angle {
-    #[inline]
-    fn div_assign(&mut self, other: Angle) {
-        self.0 /= other.0;
-        self.inner_wrap();
-    }
-}
-
-impl DivAssign<f32> for Angle {
-    #[inline]
-    fn div_assign(&mut self, other: f32) {
-        self.0 /= other;
-        self.inner_wrap();
-    }
-}
-
-// impl DivAssign<i32> for Angle{
-//
-//     fn div_assign(&mut self, other: i32) {
-//         self.0 /= (other as f32).to_radians();
-//         self.inner_wrap();
-//     }
-// }
-
-//
-
-impl Neg for Angle {
-    type Output = Self;
-    #[inline]
-    fn neg(self) -> Self::Output {
-        Angle(-self.0)
-    }
-}
-
-#[inline]
-pub fn point_to_angle_2(point1: Vec2, point2: Vec2) -> Angle {
-    let x = point1.x - point2.x;
-    let y = point1.y - point2.y;
-    Angle::new(y.atan2(x))
 }

@@ -14,3 +14,4 @@ sound-traits.workspace = true
 log.workspace = true
 glam.workspace = true
 nanoserde.workspace = true
+math.workspace = true

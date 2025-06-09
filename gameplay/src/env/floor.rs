@@ -13,11 +13,14 @@ use crate::thing::MapObject;
 use crate::thinker::{Think, Thinker, ThinkerData};
 
 use crate::env::specials::{
-    PlaneResult, find_highest_floor_surrounding, find_lowest_ceiling_surrounding, find_lowest_floor_surrounding, find_next_highest_floor, get_next_sector, move_plane
+    PlaneResult, find_highest_floor_surrounding, find_lowest_ceiling_surrounding,
+    find_lowest_floor_surrounding, find_next_highest_floor, get_next_sector, move_plane,
 };
 use crate::env::switch::start_sector_sound;
 
-const FLOORSPEED: f32 = 1.0;
+use math::{FT_EIGHT, FT_FOUR, FT_ONE, FT_SIXTEEN, FT_TWO, FT_ZERO, fixed_t};
+
+const FLOORSPEED: fixed_t = FT_ONE;
 
 #[derive(Debug, Clone, Copy)]
 pub enum FloorKind {
@@ -63,12 +66,12 @@ pub struct FloorMove {
     pub thinker: *mut Thinker,
     pub sector: MapPtr<Sector>,
     pub kind: FloorKind,
-    pub speed: f32,
+    pub speed: fixed_t,
     pub crush: bool,
     pub direction: i32,
     pub newspecial: i16,
     pub texture: usize,
-    pub destheight: f32,
+    pub destheight: fixed_t,
 }
 
 /// EV_DoFloor
@@ -97,7 +100,7 @@ pub fn ev_do_floor(line: MapPtr<LineDef>, kind: FloorKind, level: &mut Level) ->
             direction: 0,
             newspecial: 0,
             texture: 0,
-            destheight: 0.0,
+            destheight: FT_ZERO,
         };
 
         match kind {
@@ -111,13 +114,13 @@ pub fn ev_do_floor(line: MapPtr<LineDef>, kind: FloorKind, level: &mut Level) ->
             }
             FloorKind::TurboLower => {
                 floor.direction = -1;
-                floor.speed *= 4.0;
+                floor.speed *= FT_FOUR;
                 floor.destheight = find_highest_floor_surrounding(sec.clone());
                 // TODO: if (gameversion <= exe_doom_1_2 ||
                 //  floor->floordestheight != sec->floorheight)
                 //  floor->floordestheight += 8 * FRACUNIT;
                 if floor.destheight != sec.floorheight {
-                    floor.destheight += 8.0;
+                    floor.destheight += FT_EIGHT;
                 }
             }
             FloorKind::RaiseFloor => {
@@ -127,7 +130,7 @@ pub fn ev_do_floor(line: MapPtr<LineDef>, kind: FloorKind, level: &mut Level) ->
                     floor.destheight = sec.ceilingheight;
                 }
                 if matches!(kind, FloorKind::RaiseFloorCrush) {
-                    floor.destheight -= 8.0;
+                    floor.destheight -= FT_EIGHT;
                 }
             }
             FloorKind::RaiseFloorToNearest => {
@@ -141,14 +144,18 @@ pub fn ev_do_floor(line: MapPtr<LineDef>, kind: FloorKind, level: &mut Level) ->
                 for line in sec.lines.iter() {
                     if line.flags & LineDefFlags::TwoSided as u32 != 0 {
                         if let Some(bottomtexture) = line.front_sidedef.bottomtexture {
-                            let tmp = level.animations[bottomtexture].num_pics() as f32;
+                            let tmp = fixed_t::from_int(
+                                level.animations[bottomtexture].num_pics() as i32
+                            );
                             if tmp < min {
                                 min = tmp;
                             }
                         }
                         if let Some(side) = line.back_sidedef.as_ref() {
                             if let Some(bottomtexture) = side.bottomtexture {
-                                let tmp = level.animations[bottomtexture].num_pics() as f32;
+                                let tmp = fixed_t::from_int(
+                                    level.animations[bottomtexture].num_pics() as i32,
+                                );
                                 if tmp < min {
                                     min = tmp;
                                 }
@@ -186,24 +193,24 @@ pub fn ev_do_floor(line: MapPtr<LineDef>, kind: FloorKind, level: &mut Level) ->
             }
             FloorKind::RaiseFloor24 => {
                 floor.direction = 1;
-                floor.destheight = sec.floorheight + 24.0;
+                floor.destheight = sec.floorheight + fixed_t::from_int(24);
             }
             FloorKind::RaiseFloor24andChange => {
                 floor.direction = 1;
-                floor.destheight = sec.floorheight + 24.0;
+                floor.destheight = sec.floorheight + fixed_t::from_int(24);
                 sec.floorpic = line.frontsector.floorpic;
                 sec.special = line.frontsector.special;
             }
             FloorKind::RaiseFloorCrush => floor.crush = true,
             FloorKind::RaiseFloorTurbo => {
                 floor.direction = 1;
-                floor.speed *= 4.0;
+                floor.speed *= FT_FOUR;
                 floor.destheight = find_next_highest_floor(sec.clone(), sec.floorheight);
             }
             FloorKind::DonutRaise => todo!(),
             FloorKind::RaiseFloor512 => {
                 floor.direction = 1;
-                floor.destheight = sec.floorheight + 512.0;
+                floor.destheight = sec.floorheight + fixed_t::from_int(512);
             }
         }
 
@@ -305,17 +312,17 @@ pub fn ev_build_stairs(line: MapPtr<LineDef>, kind: StairKind, level: &mut Level
             direction: 1,
             newspecial: 0,
             texture: sector.floorpic,
-            destheight: 0.0,
+            destheight: FT_ZERO,
         };
 
         match kind {
             StairKind::Build8 => {
-                speed = FLOORSPEED / 4.0;
-                stair_size = 8.0;
+                speed = FLOORSPEED / FT_FOUR;
+                stair_size = FT_EIGHT;
             }
             StairKind::Turbo16 => {
-                speed = FLOORSPEED * 8.0;
-                stair_size = 16.0;
+                speed = FLOORSPEED * FT_EIGHT;
+                stair_size = FT_SIXTEEN;
             }
         }
         floor.speed = speed;
@@ -425,7 +432,7 @@ pub fn ev_do_donut(line: MapPtr<LineDef>, level: &mut Level) -> bool {
                         thinker: null_mut(),
                         sector: s2.clone(),
                         kind: FloorKind::DonutRaise,
-                        speed: FLOORSPEED / 2.0,
+                        speed: FLOORSPEED / FT_TWO,
                         crush: false,
                         direction: 1,
                         newspecial: 0,
@@ -446,7 +453,7 @@ pub fn ev_do_donut(line: MapPtr<LineDef>, level: &mut Level) -> bool {
                         thinker: null_mut(),
                         sector: MapPtr::new(sector),
                         kind: FloorKind::LowerFloor,
-                        speed: FLOORSPEED / 2.0,
+                        speed: FLOORSPEED / FT_TWO,
                         crush: false,
                         direction: -1,
                         newspecial: 0,

@@ -17,14 +17,17 @@ use crate::level::map_data::BSPTrace;
 use crate::level::map_defs::{BBox, LineDef, SlopeType};
 use crate::utilities::{BestSlide, Intercept, PortalZ, box_on_line_side, path_traverse};
 use crate::{MapObjKind, MapObject, MapPtr};
-use math::{Angle, FRACUNIT_DIV4, circle_circle_intersect, fixed_to_float, p_random};
+use math::{
+    ANG45, ANG90, ANG180, Angle, FRACUNIT_DIV4, FT_EIGHT, FT_FOURTH, FT_ONE, FT_TWO, FT_ZERO,
+    VecF2, circle_circle_intersect, fixed_t, fixed_to_float, p_random, point_to_angle_2,
+};
 
 use super::MapObjFlag;
 
-pub const GRAVITY: f32 = 1.0;
-pub const MAXMOVE: f32 = 30.0;
-pub const STOPSPEED: f32 = fixed_to_float(0x1000);
-pub const FRICTION: f32 = fixed_to_float(0xE800);
+pub const GRAVITY: fixed_t = fixed_t::from_int(1);
+pub const MAXMOVE: fixed_t = fixed_t::from_int(30);
+pub const STOPSPEED: fixed_t = fixed_t::from_float(fixed_to_float(0x1000));
+pub const FRICTION: fixed_t = fixed_t::from_float(fixed_to_float(0xE800));
 
 //const MAXSPECIALCROSS: i32 = 8;
 pub const PT_ADDLINES: i32 = 1;
@@ -38,9 +41,9 @@ pub struct SubSectorMinMax {
     /// If "floatok" true, move would be ok
     /// if within "tmfloorz - tmceilingz".
     floatok: bool,
-    pub min_floor_z: f32,
-    pub max_ceil_z: f32,
-    max_dropoff: f32,
+    pub min_floor_z: fixed_t,
+    pub max_ceil_z: fixed_t,
+    max_dropoff: fixed_t,
     sky_line: Option<MapPtr<LineDef>>,
     spec_hits: Vec<MapPtr<LineDef>>,
 }
@@ -52,7 +55,7 @@ impl MapObject {
             unsafe {
                 let player = &mut *(self.player.unwrap());
                 player.viewheight -= self.floorz - self.z;
-                player.deltaviewheight = (((VIEWHEIGHT - player.viewheight) as i32) >> 3) as f32;
+                player.deltaviewheight = (VIEWHEIGHT - player.viewheight) / FT_EIGHT;
             }
         }
 
@@ -68,11 +71,11 @@ impl MapObject {
                     && self.flags & MapObjFlag::Infloat as u32 == 0
                 {
                     let dist = self.xy.distance(target.xy);
-                    let delta = target.z + self.height / 2.0 - self.z;
+                    let delta = target.z + self.height / FT_TWO - self.z;
 
-                    if delta < 0.0 && dist < -(delta * 3.0) {
+                    if delta < FT_ZERO && dist < -(delta * fixed_t::from_int(3)) {
                         self.z -= FLOATSPEED;
-                    } else if delta > 0.0 && dist < delta * 3.0 {
+                    } else if delta > FT_ZERO && dist < delta * fixed_t::from_int(3) {
                         self.z += FLOATSPEED;
                     }
                 }
@@ -89,18 +92,18 @@ impl MapObject {
                 self.momz = -self.momz;
             }
 
-            if self.momz < 0.0 {
-                if self.player.is_some() && self.momz < -1.0 * 8.0 {
+            if self.momz < FT_ZERO {
+                if self.player.is_some() && self.momz < fixed_t::from_int(-8) {
                     // Squat down.
                     // Decrease viewheight for a moment
                     // after hitting the ground (hard),
                     // and utter appropriate sound.
                     unsafe {
                         let player = &mut *(self.player.unwrap());
-                        player.viewheight = ((self.momz as i32) >> 3) as f32;
+                        player.viewheight = self.momz / FT_EIGHT;
                     }
                 }
-                self.momz = 0.0;
+                self.momz = FT_ZERO;
             }
 
             self.z = self.floorz;
@@ -112,8 +115,8 @@ impl MapObject {
                 return;
             }
         } else if self.flags & MapObjFlag::Nogravity as u32 == 0 {
-            if self.momz == 0.0 {
-                self.momz = -GRAVITY * 2.0;
+            if self.momz == FT_ZERO {
+                self.momz = -GRAVITY * FT_TWO;
             } else {
                 self.momz -= GRAVITY;
             }
@@ -121,8 +124,8 @@ impl MapObject {
 
         if self.z + self.height > self.ceilingz {
             // hit the ceiling
-            if self.momz > 0.0 {
-                self.momz = 0.0;
+            if self.momz > FT_ZERO {
+                self.momz = FT_ZERO;
                 self.z = self.ceilingz - self.height;
             }
 
@@ -141,10 +144,10 @@ impl MapObject {
 
     /// Doom function name `P_XYMovement`
     pub(crate) fn p_xy_movement(&mut self) {
-        if self.momxy.x == 0.0 && self.momxy.y == 0.0 {
+        if self.momxy.x == FT_ZERO && self.momxy.y == FT_ZERO {
             if self.flags & MapObjFlag::Skullfly as u32 != 0 {
                 self.flags &= !(MapObjFlag::Skullfly as u32);
-                self.momz = 0.0;
+                self.momz = FT_ZERO;
                 self.set_state(self.info.spawnstate);
             }
             return;
@@ -171,17 +174,17 @@ impl MapObject {
         let mut ptryx;
         let mut ptryy;
 
-        while xmove != 0.0 || ymove != 0.0 {
-            if xmove > MAXMOVE / 2.0 || ymove > MAXMOVE / 2.0 {
-                ptryx = self.xy.x + xmove / 2.0;
-                ptryy = self.xy.y + ymove / 2.0;
-                xmove /= 2.0;
-                ymove /= 2.0;
+        while xmove != FT_ZERO || ymove != FT_ZERO {
+            if xmove > MAXMOVE / FT_TWO || ymove > MAXMOVE / FT_TWO {
+                ptryx = self.xy.x + xmove / FT_TWO;
+                ptryy = self.xy.y + ymove / FT_TWO;
+                xmove /= FT_TWO;
+                ymove /= FT_TWO;
             } else {
                 ptryx = self.xy.x + xmove;
                 ptryy = self.xy.y + ymove;
-                xmove = 0.0;
-                ymove = 0.0;
+                xmove = FT_ZERO;
+                ymove = FT_ZERO;
             }
 
             let mut ctrl = SubSectorMinMax::default();
@@ -203,7 +206,7 @@ impl MapObject {
                     }
                     self.p_explode_missile(); //
                 } else {
-                    self.momxy = Vec2::default();
+                    self.momxy = VecF2::default();
                 }
             }
         }
@@ -222,10 +225,10 @@ impl MapObject {
         if self.flags & MapObjFlag::Corpse as u32 != 0 {
             // do not stop sliding
             //  if halfway off a step with some momentum
-            if (self.momxy.x > FRACUNIT_DIV4
-                || self.momxy.x < -FRACUNIT_DIV4
-                || self.momxy.y > FRACUNIT_DIV4
-                || self.momxy.y < -FRACUNIT_DIV4)
+            if (self.momxy.x > FT_FOURTH
+                || self.momxy.x < -FT_FOURTH
+                || self.momxy.y > FT_FOURTH
+                || self.momxy.y < -FT_FOURTH)
                 && self.floorz != floorheight
             {
                 return;
@@ -253,7 +256,7 @@ impl MapObject {
                 self.set_state(StateNum::PLAY);
                 // }
             }
-            self.momxy = Vec2::default();
+            self.momxy = VecF2::default();
         } else {
             self.momxy *= FRICTION;
         }
@@ -263,12 +266,12 @@ impl MapObject {
     /// collision
     pub(crate) fn p_try_move(
         &mut self,
-        ptryx: f32,
-        ptryy: f32,
+        ptryx: fixed_t,
+        ptryy: fixed_t,
         ctrl: &mut SubSectorMinMax,
     ) -> bool {
         // P_CrossSpecialLine
-        let try_move = Vec2::new(ptryx, ptryy);
+        let try_move = VecF2::new(ptryx, ptryy);
 
         ctrl.floatok = false;
         if !self.p_check_position(try_move, ctrl) {
@@ -287,12 +290,14 @@ impl MapObject {
                 return false; // thing must lower itself to fit
             }
 
-            if self.flags & MapObjFlag::Teleport as u32 == 0 && ctrl.min_floor_z - self.z > 24.0 {
+            if self.flags & MapObjFlag::Teleport as u32 == 0
+                && ctrl.min_floor_z - self.z > fixed_t::from_float(24.0)
+            {
                 return false; // too big a step up
             }
 
             if self.flags & (MapObjFlag::Dropoff as u32 | MapObjFlag::Float as u32) == 0
-                && ctrl.min_floor_z - ctrl.max_dropoff > 24.0
+                && ctrl.min_floor_z - ctrl.max_dropoff > fixed_t::from_float(24.0)
             {
                 return false; // too big a step up
             }
@@ -330,7 +335,7 @@ impl MapObject {
     /// Check for things and lines contacts.
     ///
     /// Doom function name `P_CheckPosition`
-    pub(crate) fn p_check_position(&mut self, endpoint: Vec2, ctrl: &mut SubSectorMinMax) -> bool {
+    pub(crate) fn p_check_position(&mut self, endpoint: VecF2, ctrl: &mut SubSectorMinMax) -> bool {
         let left = endpoint.x - self.radius;
         let right = endpoint.x + self.radius;
         let top = endpoint.y + self.radius;
@@ -369,8 +374,11 @@ impl MapObject {
         // Lines to check = 4~
 
         // This is very expensive, it needs to be converted to a subsector check
-        let mut bsp_trace =
-            BSPTrace::new_line(Vec2::new(left, bottom), Vec2::new(right, top), self.radius);
+        let mut bsp_trace = BSPTrace::new_line(
+            VecF2::new(left, bottom),
+            VecF2::new(right, top),
+            self.radius,
+        );
 
         let mut count = 0;
         // TODO: modify so that first line that is blocking makes function return
@@ -405,7 +413,7 @@ impl MapObject {
     fn pit_check_thing(
         &mut self,
         thing: &mut MapObject,
-        endpoint: Vec2,
+        endpoint: VecF2,
         ctrl: &mut SubSectorMinMax,
     ) -> bool {
         if thing.flags
@@ -430,8 +438,8 @@ impl MapObject {
             let damage = ((p_random() % 8) + 1) * self.info.damage;
             thing.p_take_damage(Some(self), None, true, damage);
 
-            self.momxy = Vec2::default();
-            self.momz = 0.0;
+            self.momxy = VecF2::default();
+            self.momz = FT_ZERO;
 
             self.flags &= !(MapObjFlag::Skullfly as u32);
             self.set_state(self.info.spawnstate);
@@ -606,7 +614,7 @@ impl MapObject {
         let trailx;
         let traily;
 
-        if self.momxy.x > 0.0 {
+        if self.momxy.x > FT_ZERO {
             leadx = self.xy.x + self.radius;
             trailx = self.xy.x - self.radius;
         } else {
@@ -614,7 +622,7 @@ impl MapObject {
             trailx = self.xy.x + self.radius;
         }
 
-        if self.momxy.y > 0.0 {
+        if self.momxy.y > FT_ZERO {
             leady = self.xy.y + self.radius;
             traily = self.xy.y - self.radius;
         } else {
@@ -635,38 +643,38 @@ impl MapObject {
             bsp_trace.find_intercepts(level.map_data.start_node(), &level.map_data, &mut count);
 
             path_traverse(
-                Vec2::new(leadx, leady),
-                Vec2::new(leadx, leady) + self.momxy,
+                VecF2::new(leadx, leady),
+                VecF2::new(leadx, leady) + self.momxy,
                 PT_ADDLINES,
                 level,
                 |intercept| self.slide_traverse(intercept),
                 &mut bsp_trace,
             );
             path_traverse(
-                Vec2::new(trailx, leady),
-                Vec2::new(trailx, leady) + self.momxy,
+                VecF2::new(trailx, leady),
+                VecF2::new(trailx, leady) + self.momxy,
                 PT_ADDLINES,
                 level,
                 |intercept| self.slide_traverse(intercept),
                 &mut bsp_trace,
             );
             path_traverse(
-                Vec2::new(leadx, traily),
-                Vec2::new(leadx, traily) + self.momxy,
+                VecF2::new(leadx, traily),
+                VecF2::new(leadx, traily) + self.momxy,
                 PT_ADDLINES,
                 level,
                 |intercept| self.slide_traverse(intercept),
                 &mut bsp_trace,
             );
 
-            if self.best_slide.best_slide_frac == 2.0 {
+            if self.best_slide.best_slide_frac == FT_TWO {
                 // The move most have hit the middle, so stairstep.
                 self.stair_step();
                 return;
             }
 
-            self.best_slide.best_slide_frac -= 0.031250;
-            if self.best_slide.best_slide_frac > 0.0 {
+            self.best_slide.best_slide_frac -= fixed_t::new(2048);
+            if self.best_slide.best_slide_frac > FT_ZERO {
                 let slide_move = self.momxy * self.best_slide.best_slide_frac; // bestfrac
                 if !self.p_try_move(
                     self.xy.x + slide_move.x,
@@ -680,12 +688,13 @@ impl MapObject {
 
             // Now continue along the wall.
             // First calculate remainder.
-            self.best_slide.best_slide_frac = 1.0 - (self.best_slide.best_slide_frac + 0.031250);
-            if self.best_slide.best_slide_frac > 1.0 {
-                self.best_slide.best_slide_frac = 1.0;
+            self.best_slide.best_slide_frac =
+                FT_ONE - (self.best_slide.best_slide_frac + fixed_t::new(2048));
+            if self.best_slide.best_slide_frac > FT_ONE {
+                self.best_slide.best_slide_frac = FT_ONE;
             }
 
-            if self.best_slide.best_slide_frac <= 0.0 {
+            if self.best_slide.best_slide_frac <= FT_ZERO {
                 return;
             }
 
@@ -730,7 +739,7 @@ impl MapObject {
             let portal = PortalZ::new(line);
             if portal.range < self.height // doesn't fit
                 || portal.top_z - self.z < self.height // thing is too high
-                || portal.bottom_z - self.z > 24.0
+                || portal.bottom_z - self.z > fixed_t::from_float(24.0)
             // too big a step up
             {
                 self.blocking_intercept(intercept);
@@ -760,24 +769,30 @@ impl MapObject {
     }
 
     /// P_HitSlideLine
-    fn hit_slide_line(&self, slide_move: &mut Vec2, line: &LineDef) {
+    fn hit_slide_line(&self, slide_move: &mut VecF2, line: &LineDef) {
         if matches!(line.slopetype, SlopeType::Horizontal) {
-            slide_move.y = 0.0;
+            slide_move.y = FT_ZERO;
             return;
         }
         if matches!(line.slopetype, SlopeType::Vertical) {
-            slide_move.x = 0.0;
+            slide_move.x = FT_ZERO;
             return;
         }
 
-        // let side = line.point_on_side(slide_move);
-        let line_angle = Angle::from_vector(line.delta);
+        let mut line_angle = point_to_angle_2(VecF2::default(), line.delta);
+
+        let side = line.point_on_side(*slide_move);
+        if side == 1 {
+            line_angle += Angle::new(ANG180);
+        }
+        // Angle::from_vector(line.delta);
         // if side == 1 {
         //     //line_angle += FRAC_PI_2;
         //     line_angle = Angle::from_vector(Vec2::new(line.delta.x * -1.0,
         // line.delta.y * -1.0)); }
 
-        let move_angle = Angle::from_vector(*slide_move);
+        let move_angle = point_to_angle_2(VecF2::default(), *slide_move);
+        //Angle::from_vector(*slide_move);
         // if move_angle.rad() > FRAC_PI_2 {
         //     move_angle -= FRAC_PI_2;
         // }
@@ -828,15 +843,15 @@ impl MapObject {
                 line.v2.x,
                 line.v2.y,
                 line.special,
-                self.xy.x as i32,
-                self.xy.y as i32,
+                self.xy.x,
+                self.xy.y,
                 intercept.frac,
             );
 
             if line.special == 0 {
                 // TODO: ordering is not great
                 let portal = PortalZ::new(line);
-                if portal.range <= 0.0 {
+                if portal.range <= FT_ZERO {
                     self.start_sound(sound_traits::SfxName::Noway);
                     // can't use through a wall
                     debug!("*UNNGFF!* Can't reach from this side");
@@ -868,17 +883,17 @@ impl MapObject {
         let dx = target.xy.x - self.xy.x;
         let dy = target.xy.y - self.xy.y;
         // Select a cardinal angle based on delta
-        if dx > 10.0 {
+        if dx > fixed_t::from_int(10) {
             dirs[1] = MoveDir::East;
-        } else if dx < -10.0 {
+        } else if dx < fixed_t::from_int(-10) {
             dirs[1] = MoveDir::West;
         } else {
             dirs[1] = MoveDir::None;
         }
 
-        if dy < -10.0 {
+        if dy < fixed_t::from_int(-10) {
             dirs[2] = MoveDir::South;
-        } else if dy > 10.0 {
+        } else if dy > fixed_t::from_int(10) {
             dirs[2] = MoveDir::North;
         } else {
             dirs[2] = MoveDir::None;
@@ -886,7 +901,8 @@ impl MapObject {
 
         // try direct route
         if dirs[1] != MoveDir::None && dirs[2] != MoveDir::None {
-            self.movedir = DIR_DIAGONALS[(((dy < 0.0) as usize) << 1) + (dx > 0.0) as usize];
+            self.movedir =
+                DIR_DIAGONALS[(((dy < FT_ZERO) as usize) << 1) + (dx > FT_ZERO) as usize];
             if self.movedir != turnaround && self.try_walk() {
                 return;
             }
@@ -977,8 +993,8 @@ impl MapObject {
             return false;
         }
 
-        let tryx = self.xy.x + self.info.speed * DIR_XSPEED[self.movedir as usize];
-        let tryy = self.xy.y + self.info.speed * DIR_YSPEED[self.movedir as usize];
+        let tryx = self.xy.x + self.info.speed * DIR_XFSPEED[self.movedir as usize];
+        let tryy = self.xy.y + self.info.speed * DIR_YFSPEED[self.movedir as usize];
 
         let mut specs = SubSectorMinMax::default();
         if !self.p_try_move(tryx, tryy, &mut specs) {
@@ -1047,13 +1063,13 @@ impl From<MoveDir> for Angle {
     fn from(d: MoveDir) -> Angle {
         match d {
             MoveDir::East => Angle::default(),
-            MoveDir::NorthEast => Angle::new(FRAC_PI_4),
-            MoveDir::North => Angle::new(FRAC_PI_2),
-            MoveDir::NorthWest => Angle::new(FRAC_PI_2 + FRAC_PI_4),
-            MoveDir::West => Angle::new(PI),
-            MoveDir::SouthWest => Angle::new(PI + FRAC_PI_4),
-            MoveDir::South => Angle::new(PI + FRAC_PI_2),
-            MoveDir::SouthEast => Angle::new(PI + FRAC_PI_2 + FRAC_PI_4),
+            MoveDir::NorthEast => Angle::new(ANG45),
+            MoveDir::North => Angle::new(ANG90),
+            MoveDir::NorthWest => Angle::new(ANG90 + ANG45),
+            MoveDir::West => Angle::new(ANG180),
+            MoveDir::SouthWest => Angle::new(ANG180 + ANG45),
+            MoveDir::South => Angle::new(ANG180 + ANG90),
+            MoveDir::SouthEast => Angle::new(ANG180 + ANG90 + ANG45),
             _ => Angle::default(),
         }
     }
@@ -1080,3 +1096,25 @@ const DIR_DIAGONALS: [MoveDir; 4] = [
 
 const DIR_XSPEED: [f32; 8] = [1.0, 0.47, 0.0, -0.47, -1.0, -0.47, 0.0, 0.47];
 const DIR_YSPEED: [f32; 8] = [0.0, 0.47, 1.0, 0.47, 0.0, -0.47, -1.0, -0.47];
+
+const DIR_XFSPEED: [fixed_t; 8] = [
+    FT_ONE,
+    fixed_t::from_float(0.47),
+    FT_ZERO,
+    fixed_t::from_float(-0.47),
+    fixed_t::from_int(-1),
+    fixed_t::from_float(0.47),
+    FT_ZERO,
+    fixed_t::from_float(0.47),
+];
+
+const DIR_YFSPEED: [fixed_t; 8] = [
+    FT_ZERO,
+    fixed_t::from_float(0.47),
+    FT_ONE,
+    fixed_t::from_float(0.47),
+    FT_ZERO,
+    fixed_t::from_float(-0.47),
+    fixed_t::from_int(-1),
+    fixed_t::from_float(-0.47),
+];

@@ -22,9 +22,12 @@ use crate::thing::{MapObjFlag, MapObject, MoveDir};
 use crate::thinker::{Thinker, ThinkerData};
 use crate::utilities::PortalZ;
 use crate::{
-    Angle, GameMode, LineDefFlags, MAXPLAYERS, MapObjKind, MapPtr, Sector, Skill, teleport_move
+    Angle, GameMode, LineDefFlags, MAXPLAYERS, MapObjKind, MapPtr, Sector, Skill, teleport_move,
 };
-use math::{p_random, point_to_angle_2};
+use math::{
+    ANG45, ANG90, ANG180, ANG270, FT_EIGHT, FT_FOUR, FT_ONE, FT_SIXTEEN, FT_TWO, FT_ZERO, fixed_t,
+    p_random, point_to_angle_2,
+};
 
 use super::movement::SubSectorMinMax;
 
@@ -59,7 +62,7 @@ fn sound_flood(
             continue;
         }
 
-        if PortalZ::new(line).range <= 0.0 {
+        if PortalZ::new(line).range <= FT_ZERO {
             continue; // A door, and it's closed
         }
 
@@ -86,10 +89,10 @@ pub(crate) fn a_facetarget(actor: &mut MapObject) {
     let xy = actor.xy;
     let mut angle = actor.angle;
     if let Some(target) = actor.target_mut() {
-        angle = point_to_angle_2(target.xy, xy);
+        angle = point_to_angle_2(xy, target.xy);
         if target.flags & MapObjFlag::Shadow as u32 == MapObjFlag::Shadow as u32 {
             // TODO: see how different this might be
-            actor.angle += (((p_random() - p_random()) >> 4) as f32).to_radians();
+            actor.angle += Angle::new(((p_random() - p_random()) as u32) << 21);
         }
     }
     actor.angle = angle;
@@ -120,14 +123,11 @@ pub(crate) fn a_chase(actor: &mut MapObject) {
     }
 
     if actor.movedir < MoveDir::None {
-        let delta = actor
-            .angle
-            .unit()
-            .angle_to(Angle::from(actor.movedir).unit());
-        if delta > FRAC_PI_4 {
-            actor.angle += FRAC_PI_4;
-        } else if delta < -FRAC_PI_4 {
-            actor.angle -= FRAC_PI_4;
+        let delta = actor.angle - Angle::from(actor.movedir);
+        if delta > Angle::new(ANG45) {
+            actor.angle += Angle::new(ANG90);
+        } else if delta < Angle::new((0 as u32).wrapping_sub(ANG45)) {
+            actor.angle -= Angle::new(ANG90);
         }
     }
 
@@ -267,8 +267,8 @@ pub(crate) fn a_fire(actor: &mut MapObject) {
             }
 
             unsafe { actor.unset_thing_position() };
-            actor.xy.x = dest.xy.x + 24.0 * dest.angle.cos();
-            actor.xy.y = dest.xy.y + 24.0 * dest.angle.sin();
+            actor.xy.x = dest.xy.x + fixed_t::from_float(24.0) * dest.angle.cos();
+            actor.xy.y = dest.xy.y + fixed_t::from_float(24.0) * dest.angle.sin();
             actor.z = dest.z;
             unsafe { actor.set_thing_position() };
         }
@@ -303,7 +303,7 @@ pub(crate) fn a_fall(actor: &mut MapObject) {
 }
 
 pub(crate) fn a_explode(actor: &mut MapObject) {
-    actor.radius_attack(128.0);
+    actor.radius_attack(128);
 }
 
 pub(crate) fn a_xscream(actor: &mut MapObject) {
@@ -405,7 +405,7 @@ pub(crate) fn a_brainspit(actor: &mut MapObject) {
         level,
     );
     m.target = Some(target_thinker);
-    m.reactiontime = ((target_xy.y - actor.xy.y) / m.momxy.y) as i32 / m.state.tics;
+    m.reactiontime = ((target_xy.y - actor.xy.y) / m.momxy.y).to_int() / m.state.tics;
 
     actor.start_sound(SfxName::Bospit);
 }
@@ -415,35 +415,35 @@ pub(crate) fn a_brainpain(actor: &mut MapObject) {
 }
 
 pub(crate) fn a_brainscream(actor: &mut MapObject) {
-    let mut x = actor.xy.x as i32 - 196;
-    while x < actor.xy.x as i32 + 320 {
-        let y = actor.xy.y - 320.0;
-        let z = 128 + p_random();
+    let mut x = actor.xy.x - fixed_t::from_int(196);
+    while x < actor.xy.x + fixed_t::from_int(320) {
+        let y = actor.xy.y - fixed_t::from_int(320);
+        let z = fixed_t::from_int(128 + p_random());
         let level = unsafe { &mut *actor.level };
-        let th = MapObject::spawn_map_object(x as f32, y, z, MapObjKind::MT_ROCKET, level);
+        let th = MapObject::spawn_map_object(x, y, z, MapObjKind::MT_ROCKET, level);
         unsafe {
             let th = &mut (*th);
-            th.momz = (p_random() as f32 / 64.0).ceil();
+            th.momz = fixed_t::from_float((p_random() as f32 / 64.0).ceil());
             th.set_state(StateNum::BRAINEXPLODE1);
             th.tics -= p_random() & 7;
             if th.tics < 1 {
                 th.tics = 1;
             }
         }
-        x += 8;
+        x += fixed_t::from_int(8);
     }
     actor.start_sound(SfxName::Bosdth);
 }
 
 pub(crate) fn a_brainexplode(actor: &mut MapObject) {
-    let x = actor.xy.x + (p_random() - p_random()) as f32 * 2.0;
+    let x = actor.xy.x + fixed_t::from_float((p_random() - p_random()) as f32 * 2.0);
     let y = actor.xy.y;
-    let z = 128 + p_random();
+    let z = fixed_t::from_int(128 + p_random());
     let level = unsafe { &mut *actor.level };
     let th = MapObject::spawn_map_object(x, y, z, MapObjKind::MT_ROCKET, level);
     unsafe {
         let th = &mut (*th);
-        th.momz = (p_random() as f32 / 64.0).ceil();
+        th.momz = fixed_t::from_float((p_random() as f32 / 64.0).ceil());
         th.set_state(StateNum::BRAINEXPLODE1);
         th.tics -= p_random() & 7;
         if th.tics < 1 {
@@ -462,13 +462,7 @@ pub(crate) fn a_spawnfly(actor: &mut MapObject) {
     if let Some(target) = actor.target() {
         let xy = target.xy;
         let fog = unsafe {
-            &mut *MapObject::spawn_map_object(
-                xy.x,
-                xy.y,
-                target.z as i32,
-                MapObjKind::MT_SPAWNFIRE,
-                level,
-            )
+            &mut *MapObject::spawn_map_object(xy.x, xy.y, target.z, MapObjKind::MT_SPAWNFIRE, level)
         };
         fog.start_sound(SfxName::Telept);
 
@@ -498,7 +492,7 @@ pub(crate) fn a_spawnfly(actor: &mut MapObject) {
         };
 
         let new_critter =
-            unsafe { &mut *MapObject::spawn_map_object(xy.x, xy.y, target.z as i32, t, level) };
+            unsafe { &mut *MapObject::spawn_map_object(xy.x, xy.y, target.z, t, level) };
         if new_critter.look_for_players(true) {
             new_critter.set_state(new_critter.info.seestate);
         }
@@ -530,13 +524,13 @@ fn vile_raise_check(actor: &mut MapObject, obj: &mut MapObject) -> bool {
     }
 
     let max_dist = obj.radius + actor.radius;
-    let try_dist = actor.xy + actor.info.speed * Angle::from(actor.movedir).unit();
+    let try_dist = actor.xy + Angle::from(actor.movedir).unit() * actor.info.speed;
     if obj.xy.distance(try_dist) > max_dist {
         return true;
     }
 
-    obj.momxy.x = 0.0;
-    obj.momxy.y = 0.0;
+    obj.momxy.x = FT_ZERO;
+    obj.momxy.y = FT_ZERO;
     let old_height = obj.height;
     obj.height = obj.info.height;
     let mut ctrl = SubSectorMinMax::default();
@@ -567,7 +561,7 @@ pub(crate) fn a_vilechase(actor: &mut MapObject) {
                 // info = corpsehit->info;
 
                 obj.set_state(obj.info.raisestate);
-                obj.height *= 2.0;
+                obj.height *= FT_TWO;
                 obj.flags = obj.info.flags;
                 obj.health = obj.info.spawnhealth;
                 obj.target = None;
@@ -591,13 +585,8 @@ pub(crate) fn a_viletarget(actor: &mut MapObject) {
         a_facetarget(actor);
 
         let level = unsafe { &mut *actor.level };
-        let fog = MapObject::spawn_map_object(
-            targ.xy.x,
-            targ.xy.y,
-            targ.z as i32,
-            MapObjKind::MT_FIRE,
-            level,
-        );
+        let fog =
+            MapObject::spawn_map_object(targ.xy.x, targ.xy.y, targ.z, MapObjKind::MT_FIRE, level);
         let fog = unsafe { &mut *fog };
         actor.tracer = Some(fog.thinker); // actor/vile owns the fire
         fog.target = Some(actor.thinker); // fire target is vile so the fire can check its owner
@@ -617,13 +606,13 @@ pub(crate) fn a_vileattack(actor: &mut MapObject) {
 
         actor.start_sound(SfxName::Barexp);
         targ.p_take_damage(Some(actor), None, true, 20);
-        targ.momz = 1000.0 / targ.info.mass as f32;
+        targ.momz = fixed_t::from_float(1000.0 / targ.info.mass as f32);
 
         if let Some(fire) = actor.tracer {
             let fire = unsafe { (*fire).mobj_mut() };
-            fire.xy.x = targ.xy.x - 24.0 * actor.angle.cos();
-            fire.xy.y = targ.xy.y - 24.0 * actor.angle.sin();
-            fire.radius_attack(70.0);
+            fire.xy.x = targ.xy.x - fixed_t::from_int(24) * actor.angle.cos();
+            fire.xy.y = targ.xy.y - fixed_t::from_int(24) * actor.angle.sin();
+            fire.radius_attack(70);
         }
     }
 }
@@ -640,9 +629,9 @@ pub(crate) fn a_posattack(actor: &mut MapObject) {
     actor.start_sound(SfxName::Pistol);
 
     let mut angle = actor.angle;
-    angle += (((p_random() - p_random()) >> 4) as f32).to_radians();
+    angle += Angle::new(((p_random() - p_random()) as u32) << 20);
     let damage = ((p_random() % 5) + 1) * 3;
-    actor.line_attack(damage as f32, MISSILERANGE, angle, slope, &mut bsp_trace);
+    actor.line_attack(damage, MISSILERANGE, angle, slope, &mut bsp_trace);
 }
 
 pub(crate) fn a_sposattack(actor: &mut MapObject) {
@@ -655,18 +644,13 @@ pub(crate) fn a_sposattack(actor: &mut MapObject) {
     let slope = actor.aim_line_attack(MISSILERANGE, &mut bsp_trace);
 
     actor.start_sound(SfxName::Shotgn);
+    let bangle = actor.angle;
 
     let mut angle;
     for _ in 0..3 {
-        angle = actor.angle + (((p_random() - p_random()) >> 4) as f32).to_radians();
+        angle = bangle + Angle::new(((p_random() - p_random()) as u32) << 20);
         let damage = ((p_random() % 5) + 1) * 3;
-        actor.line_attack(
-            damage as f32,
-            MISSILERANGE,
-            angle,
-            slope.clone(),
-            &mut bsp_trace,
-        );
+        actor.line_attack(damage, MISSILERANGE, angle, slope.clone(), &mut bsp_trace);
     }
 }
 
@@ -678,13 +662,12 @@ pub(crate) fn a_cposattack(actor: &mut MapObject) {
     a_facetarget(actor);
     let mut bsp_trace = actor.get_shoot_bsp_trace(MISSILERANGE);
     let slope = actor.aim_line_attack(MISSILERANGE, &mut bsp_trace);
-
+    let bangle = actor.angle;
     actor.start_sound(SfxName::Shotgn);
 
-    let mut angle = actor.angle;
-    angle += (((p_random() - p_random()) >> 4) as f32).to_radians();
+    let angle = bangle + Angle::new(((p_random() - p_random()) as u32) << 20);
     let damage = ((p_random() % 5) + 1) * 3;
-    actor.line_attack(damage as f32, MISSILERANGE, angle, slope, &mut bsp_trace);
+    actor.line_attack(damage, MISSILERANGE, angle, slope, &mut bsp_trace);
 }
 
 pub(crate) fn a_bspiattack(actor: &mut MapObject) {
@@ -709,11 +692,11 @@ pub(crate) fn a_skullattack(actor: &mut MapObject) {
         actor.momxy = actor.angle.unit() * SKULLSPEED;
 
         let mut dist = actor.xy.distance(target.xy) / SKULLSPEED;
-        if dist < 1.0 {
-            dist = 1.0;
+        if dist < FT_ONE {
+            dist = FT_ONE;
         }
 
-        actor.momz = (target.z + (target.height / 2.0) - actor.z) / dist;
+        actor.momz = (target.z + (target.height / FT_TWO) - actor.z) / dist;
     }
 }
 
@@ -814,18 +797,18 @@ fn a_painshootskull(actor: &mut MapObject, angle: Angle) {
     a_facetarget(actor);
     // TODO: limit amount of skulls
     //
-    let mut d = angle.unit();
-    d += 4.0 + 3.0 * (actor.radius + MOBJINFO[MapObjKind::MT_SKULL as usize].radius) / 2.0;
+    let skull_radius = MOBJINFO[MapObjKind::MT_SKULL as usize].radius;
+    let prestep = FT_FOUR + fixed_t::from_int(3) * (actor.radius + skull_radius) / FT_TWO;
+
+    let an = angle >> 19;
+
+    let x = actor.xy.x + angle.cos() * prestep;
+    let y = actor.xy.y + angle.sin() * prestep;
+    let z = actor.z + FT_EIGHT;
 
     let level = unsafe { &mut *actor.level };
     unsafe {
-        let skull = &mut (*MapObject::spawn_map_object(
-            actor.xy.x + d.x,
-            actor.xy.y + d.y,
-            actor.z as i32 + 8,
-            MapObjKind::MT_SKULL,
-            level,
-        ));
+        let skull = &mut (*MapObject::spawn_map_object(x, y, z, MapObjKind::MT_SKULL, level));
         let mut ctrl = SubSectorMinMax::default();
         if !skull.p_try_move(skull.xy.x, skull.xy.y, &mut ctrl) {
             skull.p_take_damage(None, None, false, 10000);
@@ -843,12 +826,14 @@ pub(crate) fn a_painattack(actor: &mut MapObject) {
 
 pub(crate) fn a_paindie(actor: &mut MapObject) {
     a_fall(actor);
-    a_painshootskull(actor, actor.angle + FRAC_PI_2);
-    a_painshootskull(actor, actor.angle + PI);
-    a_painshootskull(actor, actor.angle + PI + FRAC_PI_2);
+    a_painshootskull(actor, actor.angle + Angle::new(ANG90));
+    a_painshootskull(actor, actor.angle + Angle::new(ANG180));
+    a_painshootskull(actor, actor.angle + Angle::new(ANG270));
 }
 
-const FAT_SPREAD: f32 = FRAC_PI_2 / 8.0;
+const FAT_SPREAD: Angle = Angle::new(ANG90 / 8);
+const HALF_FAT_SPREAD: Angle = Angle::new(ANG90 / 16);
+const DOUBLE_FAT_SPREAD: Angle = Angle::new(ANG90 / 4);
 
 pub(crate) fn a_fatattack1(actor: &mut MapObject) {
     if let Some(target) = actor.target {
@@ -886,7 +871,7 @@ pub(crate) fn a_fatattack2(actor: &mut MapObject) {
 
         // 2 away
         let missile = MapObject::spawn_missile(actor, target, MapObjKind::MT_FATSHOT, level);
-        actor.angle -= FAT_SPREAD * 2.0;
+        actor.angle -= DOUBLE_FAT_SPREAD;
         let an = missile.angle;
         missile.momxy.x = missile.info.speed * an.cos();
         missile.momxy.y = missile.info.speed * an.sin();
@@ -898,7 +883,7 @@ pub(crate) fn a_fatattack3(actor: &mut MapObject) {
         let target = unsafe { (*target).mobj_mut() };
 
         a_facetarget(actor);
-        actor.angle -= FAT_SPREAD / 2.0;
+        actor.angle -= HALF_FAT_SPREAD;
         // 1 away
         let missile = MapObject::spawn_missile(actor, target, MapObjKind::MT_FATSHOT, level);
         let an = missile.angle;
@@ -907,7 +892,7 @@ pub(crate) fn a_fatattack3(actor: &mut MapObject) {
 
         // 2 away
         let missile = MapObject::spawn_missile(actor, target, MapObjKind::MT_FATSHOT, level);
-        actor.angle += FAT_SPREAD / 2.0;
+        actor.angle += HALF_FAT_SPREAD;
         let an = missile.angle;
         missile.momxy.x = missile.info.speed * an.cos();
         missile.momxy.y = missile.info.speed * an.sin();
@@ -1080,9 +1065,9 @@ pub(crate) fn a_skelmissile(actor: &mut MapObject) {
         a_facetarget(actor);
 
         let level = unsafe { &mut *actor.level };
-        actor.z += 16.0;
+        actor.z += FT_SIXTEEN;
         let missile = MapObject::spawn_missile(actor, target, MapObjKind::MT_TRACER, level);
-        actor.z -= 16.0;
+        actor.z -= FT_SIXTEEN;
 
         missile.xy += missile.momxy;
         missile.tracer = actor.target;
@@ -1093,16 +1078,11 @@ pub(crate) fn a_skelmissile(actor: &mut MapObject) {
 pub(crate) fn a_tracer(actor: &mut MapObject) {
     let level = unsafe { &mut *actor.level };
     // spawn a puff of smoke behind the rocket
-    MapObject::spawn_puff(actor.xy.x, actor.xy.y, actor.z as i32, 0.0, level);
-    let thing = MapObject::spawn_map_object(
-        actor.xy.x,
-        actor.xy.y,
-        actor.z as i32,
-        MapObjKind::MT_SMOKE,
-        level,
-    );
+    MapObject::spawn_puff(actor.xy.x, actor.xy.y, actor.z, FT_ZERO, level);
+    let thing =
+        MapObject::spawn_map_object(actor.xy.x, actor.xy.y, actor.z, MapObjKind::MT_SMOKE, level);
     let smoke = unsafe { &mut *thing };
-    smoke.momz = 1.0;
+    smoke.momz = FT_ONE;
     smoke.tics -= p_random() & 3;
     if smoke.tics < 1 {
         smoke.tics = 1;
@@ -1122,14 +1102,14 @@ pub(crate) fn a_tracer(actor: &mut MapObject) {
         actor.momxy.y = actor.info.speed * an.sin();
 
         let mut dist = actor.xy.distance(dest.mobj().xy) / actor.info.speed;
-        if dist < 1.0 {
-            dist = 1.0;
+        if dist < FT_ONE {
+            dist = FT_ONE;
         }
-        let slope = (dest.mobj().z + 40.0 - actor.z) / dist;
+        let slope = (dest.mobj().z + fixed_t::from_int(40) - actor.z) / dist;
         if slope < actor.momz {
-            actor.momz -= 1.0 / 8.0;
+            actor.momz -= fixed_t::from_float(1.0 / 8.0);
         } else {
-            actor.momz += 1.0 / 8.0;
+            actor.momz += fixed_t::from_float(1.0 / 8.0);
         }
     }
 }

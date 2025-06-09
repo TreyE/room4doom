@@ -12,6 +12,7 @@ pub mod node;
 use std::collections::VecDeque;
 use std::ptr;
 
+use math::fixed_t;
 use sound_sdl2::SndServerTx;
 use sound_traits::{SfxName, SoundAction};
 use wad::WadData;
@@ -233,7 +234,7 @@ impl Level {
         self.game_action = Some(GameAction::Victory);
     }
 
-    pub(super) fn start_sound(&self, sfx: SfxName, x: f32, y: f32, uid: usize) {
+    pub(super) fn start_sound(&self, sfx: SfxName, x: fixed_t, y: fixed_t, uid: usize) {
         self.snd_command
             .send(SoundAction::StartSfx { uid, sfx, x, y })
             .unwrap();

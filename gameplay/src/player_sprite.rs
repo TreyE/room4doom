@@ -10,12 +10,12 @@ use crate::player::{Player, PsprNum};
 use crate::thing::MapObject;
 use crate::tic_cmd::TIC_CMD_BUTTONS;
 use crate::{MapObjKind, PlayerState, WeaponType};
-use math::{p_random, point_to_angle_2};
+use math::{ANG45, ANG90, ANG180, Angle, FT_FOUR, FT_ONE, fixed_t, p_random, point_to_angle_2};
 
-const LOWERSPEED: f32 = 6.0;
-const RAISESPEED: f32 = 6.0;
-pub(crate) const WEAPONBOTTOM: f32 = 128.0;
-const WEAPONTOP: f32 = 32.0;
+const LOWERSPEED: fixed_t = fixed_t::from_int(6);
+const RAISESPEED: fixed_t = fixed_t::from_int(6);
+pub(crate) const WEAPONBOTTOM: fixed_t = fixed_t::from_int(128);
+const WEAPONTOP: fixed_t = fixed_t::from_int(32);
 
 /// From P_PSPR
 #[derive(Debug)]
@@ -23,8 +23,8 @@ pub struct PspDef {
     /// a NULL state means not active
     pub state: Option<&'static State>,
     pub(crate) tics: i32,
-    pub sx: f32,
-    pub sy: f32,
+    pub sx: fixed_t,
+    pub sy: fixed_t,
 }
 
 /// The player can re-fire the weapon
@@ -94,11 +94,13 @@ pub(crate) fn a_weaponready(player: &mut Player, pspr: &mut PspDef) {
 
     // the division is the frequency
     let angle = (level_time as f32 / 8.0).cos();
-    pspr.sx = player.bob * angle;
+    pspr.sx = player.bob * fixed_t::from_float(angle);
     // the division is the frequency
     let angle = (level_time as f32 / 4.0).sin();
     // the division (3.0) is the depth
-    pspr.sy = WEAPONTOP + 6.0 + player.bob / 3.0 * angle;
+    pspr.sy = WEAPONTOP
+        + fixed_t::from_int(6)
+        + player.bob / fixed_t::from_int(3) * fixed_t::from_float(angle);
 }
 
 pub(crate) fn a_lower(player: &mut Player, pspr: &mut PspDef) {
@@ -189,9 +191,9 @@ pub(crate) fn a_fireshotgun2(player: &mut Player, _pspr: &mut PspDef) {
         let bullet_slope = mobj.bullet_slope(distance, &mut bsp_trace);
 
         for _ in 0..20 {
-            let damage = 5.0 * (p_random() % 3 + 1) as f32;
+            let damage = (p_random() % 3 + 1) * 5;
             let mut angle = mobj.angle;
-            angle += (((p_random() - p_random()) >> 5) as f32).to_radians();
+            angle += Angle::from_int((p_random() - p_random()) << 19);
             mobj.line_attack(
                 damage,
                 MISSILERANGE,
@@ -285,7 +287,8 @@ pub(crate) fn a_bfgsound(player: &mut Player, _pspr: &mut PspDef) {
 pub(crate) fn a_bfgspray(player: &mut MapObject) {
     for i in 0..40 {
         // From left to right
-        let angle = player.angle - FRAC_PI_4 + (FRAC_PI_2 / 40.0) * i as f32;
+        let angle = player.angle - Angle::new(ANG45) + Angle::new(ANG90 / 40 * i);
+        //FRAC_PI_4 + (FRAC_PI_2 / 40.0) * i as f32;
         let mut bsp_trace = player.get_shoot_bsp_trace(MISSILERANGE);
         let old_angle = player.angle;
         player.angle = angle;
@@ -294,7 +297,7 @@ pub(crate) fn a_bfgspray(player: &mut MapObject) {
         if let Some(aim) = aim {
             let mut lt = aim.line_target;
             let level = unsafe { &mut *player.level };
-            let z = lt.z as i32 + ((lt.height as i32) >> 2);
+            let z = lt.z + (lt.height / FT_FOUR);
             MapObject::spawn_map_object(lt.xy.x, lt.xy.y, z, MapObjKind::MT_EXTRABFG, level);
 
             let mut damage = 0;
@@ -315,14 +318,16 @@ pub(crate) fn a_gunflash(player: &mut Player, _pspr: &mut PspDef) {
 }
 
 pub(crate) fn a_punch(player: &mut Player, _pspr: &mut PspDef) {
-    let mut damage = (p_random() % 10 + 1) as f32;
+    let mut damage = (p_random() % 10 + 1) << 1;
     if player.status.powers[PowerType::Strength as usize] != 0 {
-        damage *= 10.0;
+        damage *= 10;
     }
 
     if let Some(mobj) = player.mobj_mut() {
         let mut angle = mobj.angle;
-        angle += (((p_random() - p_random()) >> 5) as f32).to_radians();
+        angle += Angle::new(((p_random() - p_random()) as u32) << 18);
+
+        //(((p_random() - p_random())) as f32).to_radians();
 
         let mut bsp_trace = mobj.get_shoot_bsp_trace(MELEERANGE);
         let slope = mobj.aim_line_attack(MELEERANGE, &mut bsp_trace);
@@ -354,17 +359,17 @@ pub(crate) fn a_closeshotgun2(player: &mut Player, pspr: &mut PspDef) {
 }
 
 pub(crate) fn a_saw(player: &mut Player, _pspr: &mut PspDef) {
-    let damage = 2.0 * (p_random() % 10 + 1) as f32;
+    let damage = 2 * (p_random() % 10 + 1);
 
     if let Some(mobj) = player.mobj_mut() {
         let mut angle = mobj.angle;
-        angle += (((p_random() - p_random()) >> 5) as f32).to_radians();
+        angle += Angle::new(((p_random() - p_random()) as u32) << 18);
 
-        let mut bsp_trace = mobj.get_shoot_bsp_trace(MELEERANGE + 1.0);
-        let slope = mobj.aim_line_attack(MELEERANGE + 1.0, &mut bsp_trace);
+        let mut bsp_trace = mobj.get_shoot_bsp_trace(MELEERANGE + FT_ONE);
+        let slope = mobj.aim_line_attack(MELEERANGE + FT_ONE, &mut bsp_trace);
         mobj.line_attack(
             damage,
-            MELEERANGE + 1.0,
+            MELEERANGE + FT_ONE,
             angle,
             slope.clone(),
             &mut bsp_trace,
@@ -380,13 +385,21 @@ pub(crate) fn a_saw(player: &mut Player, _pspr: &mut PspDef) {
         if let Some(res) = slope {
             let target = res.line_target;
             mobj.start_sound(SfxName::Punch);
-            let angle = point_to_angle_2(target.xy, mobj.xy);
+            let angle = point_to_angle_2(mobj.xy, target.xy);
 
-            let delta = angle.rad() - mobj.angle.rad();
-            if delta > FRAC_PI_2 / 20.0 {
-                mobj.angle += FRAC_PI_2 / 21.0;
+            let delta = angle - mobj.angle;
+            if delta > Angle::new(ANG180) {
+                if delta < Angle::new((0 as u32).wrapping_sub(ANG90 / 20)) {
+                    mobj.angle = angle + Angle::new(ANG90 / 20);
+                } else {
+                    mobj.angle -= Angle::new(ANG90 / 20);
+                }
             } else {
-                mobj.angle -= FRAC_PI_2 / 20.0;
+                if (angle - mobj.angle > Angle::new(ANG90 / 20)) {
+                    mobj.angle = angle - Angle::new(ANG90 / 21)
+                } else {
+                    mobj.angle -= Angle::new(ANG90 / 20);
+                }
             }
         }
     }

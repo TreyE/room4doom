@@ -10,16 +10,16 @@ use sound_traits::SfxName;
 use crate::MapPtr;
 use crate::doom_def::TICRATE;
 use crate::env::specials::{
-    PlaneResult, find_highest_floor_surrounding, find_lowest_floor_surrounding, move_plane
+    PlaneResult, find_highest_floor_surrounding, find_lowest_floor_surrounding, move_plane,
 };
 use crate::env::switch::start_sector_sound;
 use crate::level::Level;
 use crate::level::map_defs::{LineDef, Sector};
 use crate::thing::MapObject;
 use crate::thinker::{Think, Thinker, ThinkerData};
-use math::p_random;
+use math::{FT_EIGHT, FT_FOUR, FT_ONE, FT_TWO, FT_ZERO, fixed_t, p_random};
 
-const PLATSPEED: f32 = 1.0;
+const PLATSPEED: fixed_t = FT_ONE;
 const PLATWAIT: i32 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
@@ -42,9 +42,9 @@ pub enum PlatKind {
 pub struct Platform {
     pub thinker: *mut Thinker,
     pub sector: MapPtr<Sector>,
-    pub speed: f32,
-    pub low: f32,
-    pub high: f32,
+    pub speed: fixed_t,
+    pub low: fixed_t,
+    pub high: fixed_t,
     pub wait: i32,
     pub count: i32,
     pub status: PlatStatus,
@@ -90,8 +90,8 @@ pub fn ev_do_platform(
             thinker: null_mut(),
             sector: MapPtr::new(sector),
             speed: PLATSPEED,
-            low: 0.0,
-            high: 0.0,
+            low: FT_ZERO,
+            high: FT_ZERO,
             wait: 0,
             count: 0,
             status: PlatStatus::InStasis,
@@ -103,7 +103,7 @@ pub fn ev_do_platform(
 
         match kind {
             PlatKind::RaiseToNearestAndChange => {
-                platform.speed /= 2.0;
+                platform.speed /= FT_TWO;
                 platform.high = find_highest_floor_surrounding(sec.clone());
                 platform.wait = 0;
                 platform.status = PlatStatus::Up;
@@ -112,8 +112,8 @@ pub fn ev_do_platform(
                 start_sector_sound(&line, SfxName::Stnmov, &level.snd_command);
             }
             PlatKind::RaiseAndChange => {
-                platform.speed /= 2.0;
-                platform.high = sec.floorheight + amount as f32;
+                platform.speed /= FT_TWO;
+                platform.high = sec.floorheight + fixed_t::from_int(amount);
                 platform.wait = 0;
                 platform.status = PlatStatus::Up;
                 sec.floorpic = line.frontsector.floorpic;
@@ -144,7 +144,7 @@ pub fn ev_do_platform(
                 start_sector_sound(&line, SfxName::Pstart, &level.snd_command);
             }
             PlatKind::DownWaitUpStay => {
-                platform.speed *= 4.0;
+                platform.speed *= FT_FOUR;
                 platform.low = find_lowest_floor_surrounding(sec.clone());
 
                 if platform.low > sec.floorheight {
@@ -157,7 +157,7 @@ pub fn ev_do_platform(
                 start_sector_sound(&line, SfxName::Pstart, &level.snd_command);
             }
             PlatKind::BlazeDWUS => {
-                platform.speed *= 8.0;
+                platform.speed *= FT_EIGHT;
                 platform.low = find_lowest_floor_surrounding(sec.clone());
 
                 if platform.low > sec.floorheight {

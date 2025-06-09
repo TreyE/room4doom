@@ -5,6 +5,7 @@ use gameplay::log::warn;
 use gameplay::tic_cmd::{LOOKDIRMAX, LOOKDIRMIN, LOOKDIRS};
 use gameplay::{Angle, FlatPic, LineDefFlags, MapObject, PicData, Player, Segment};
 use glam::Vec2;
+use math::{FloatAngle, fixed_t};
 use render_trait::{PixelBuffer, RenderTrait, SOFT_PIXEL_CHANNELS};
 use std::f32::consts::{FRAC_PI_2, PI, TAU};
 use std::ptr::NonNull;
@@ -47,11 +48,11 @@ pub(crate) struct SegRender {
     bottomtexture: bool,
     midtexture: bool,
     //
-    rw_normalangle: Angle,
+    rw_normalangle: FloatAngle,
     // regular wall
     rw_startx: f32,
     rw_stopx: f32,
-    rw_centerangle: Angle,
+    rw_centerangle: FloatAngle,
     rw_offset: f32,
     rw_distance: f32, // In R_ScaleFromGlobalAngle? Compute when needed
     rw_scale: f32,
@@ -116,10 +117,10 @@ impl SegRender {
             toptexture: false,
             bottomtexture: false,
             midtexture: false,
-            rw_normalangle: Angle::default(),
+            rw_normalangle: FloatAngle::default(),
             rw_startx: 0.0,
             rw_stopx: 0.0,
-            rw_centerangle: Angle::default(),
+            rw_centerangle: FloatAngle::default(),
             rw_offset: 0.0,
             rw_distance: 0.0,
             rw_scale: 0.0,
@@ -233,13 +234,13 @@ impl SegRender {
         linedef.flags |= LineDefFlags::Mapped as u32;
         // TODO: return if in automap
 
-        self.rw_normalangle = seg.angle + FRAC_PI_2; // widescreen: Leave as is
+        self.rw_normalangle = seg.angle.to_float_angle() + FRAC_PI_2; // widescreen: Leave as is
         let mut offsetangle = self.rw_normalangle - rdata.rw_angle1; // radians
 
         let mobj = unsafe { player.mobj_unchecked() };
 
-        let distangle = Angle::new(FRAC_PI_2 - offsetangle.rad()); // widescreen: Leave as is
-        let hyp = point_to_dist(seg.v1.x, seg.v1.y, mobj.xy); // verified correct
+        let distangle = FloatAngle::new(FRAC_PI_2 - offsetangle.rad()); // widescreen: Leave as is
+        let hyp = point_to_dist(seg.v1.x.to_float(), seg.v1.y.to_float(), mobj.xy.to_vec_2()); // verified correct
         self.rw_distance = hyp * distangle.sin(); // Correct??? Seems to be...
 
         ds_p.x1 = start;
@@ -247,20 +248,20 @@ impl SegRender {
         ds_p.x2 = stop;
         self.rw_stopx = stop + 1.0;
         self.rw_scale = scale_from_view_angle(
-            mobj.angle + self.screen_x[start as u32 as usize],
+            mobj.angle.to_float_angle() + self.screen_x[start as u32 as usize],
             self.rw_normalangle,
             self.rw_distance,
-            mobj.angle,
+            mobj.angle.to_float_angle(),
             size.half_width_f32(),
         ) * self.wide_ratio;
         ds_p.scale1 = self.rw_scale;
 
         if stop > start {
             ds_p.scale2 = scale_from_view_angle(
-                mobj.angle + self.screen_x[stop as u32 as usize],
+                mobj.angle.to_float_angle() + self.screen_x[stop as u32 as usize],
                 self.rw_normalangle,
                 self.rw_distance,
-                mobj.angle,
+                mobj.angle.to_float_angle(),
                 size.half_width_f32(),
             ) * self.wide_ratio;
 
@@ -274,8 +275,8 @@ impl SegRender {
         //  and decide if floor / ceiling marks are needed
         // `seg.sidedef.sector` is the front sector
         let frontsector = &seg.frontsector;
-        self.worldtop = frontsector.ceilingheight - player.viewz;
-        self.worldbottom = frontsector.floorheight - player.viewz;
+        self.worldtop = (frontsector.ceilingheight - player.viewz).to_float();
+        self.worldbottom = (frontsector.floorheight - player.viewz).to_float();
 
         self.midtexture = false;
         self.toptexture = false;
@@ -298,14 +299,15 @@ impl SegRender {
             if linedef.flags & LineDefFlags::UnpegBottom as u32 != 0 {
                 if let Some(mid_tex) = sidedef.midtexture {
                     let texture_column = pic_data.wall_pic_column(mid_tex, 0);
-                    let vtop = frontsector.floorheight + texture_column.len() as f32;
-                    self.rw_midtexturemid = vtop - player.viewz;
+                    let vtop =
+                        frontsector.floorheight + fixed_t::from_int(texture_column.len() as i32);
+                    self.rw_midtexturemid = (vtop - player.viewz).to_float();
                 }
             } else {
                 // top of texture at top
                 self.rw_midtexturemid = self.worldtop;
             }
-            self.rw_midtexturemid += sidedef.rowoffset;
+            self.rw_midtexturemid += sidedef.rowoffset.to_float();
 
             ds_p.silhouette = SIL_BOTH;
             ds_p.sprtopclip = Some(0.0); // start of screenheightarray
@@ -322,7 +324,7 @@ impl SegRender {
 
             if frontsector.floorheight > backsector.floorheight {
                 ds_p.silhouette = SIL_BOTTOM;
-                ds_p.bsilheight = frontsector.floorheight;
+                ds_p.bsilheight = frontsector.floorheight.to_float();
             } else if backsector.floorheight >= player.viewz {
                 ds_p.silhouette = SIL_BOTTOM;
                 ds_p.bsilheight = f32::MAX;
@@ -330,7 +332,7 @@ impl SegRender {
 
             if frontsector.ceilingheight < backsector.ceilingheight {
                 ds_p.silhouette |= SIL_TOP;
-                ds_p.tsilheight = frontsector.ceilingheight;
+                ds_p.tsilheight = frontsector.ceilingheight.to_float();
             } else if backsector.ceilingheight < player.viewz {
                 ds_p.silhouette |= SIL_TOP;
                 ds_p.tsilheight = f32::MIN;
@@ -351,8 +353,8 @@ impl SegRender {
             //     ds_p.tsilheight = f32::MIN;
             // }
 
-            self.worldhigh = backsector.ceilingheight - player.viewz;
-            self.worldlow = backsector.floorheight - player.viewz;
+            self.worldhigh = (backsector.ceilingheight - player.viewz).to_float();
+            self.worldlow = (backsector.floorheight - player.viewz).to_float();
 
             if frontsector.ceilingpic == pic_data.sky_num()
                 && backsector.ceilingpic == pic_data.sky_num()
@@ -396,9 +398,10 @@ impl SegRender {
                     self.rw_toptexturemid = self.worldtop;
                 } else if let Some(top_tex) = sidedef.toptexture {
                     let texture_column = pic_data.wall_pic_column(top_tex, 0);
-                    let vtop = backsector.ceilingheight + texture_column.len() as f32;
+                    let vtop =
+                        backsector.ceilingheight + fixed_t::from_int(texture_column.len() as i32);
                     // texture bottom
-                    self.rw_toptexturemid = vtop - player.viewz;
+                    self.rw_toptexturemid = (vtop - player.viewz).to_float();
                 }
             }
 
@@ -411,8 +414,8 @@ impl SegRender {
                 }
             }
 
-            self.rw_toptexturemid += sidedef.rowoffset;
-            self.rw_bottomtexturemid += sidedef.rowoffset;
+            self.rw_toptexturemid += sidedef.rowoffset.to_float();
+            self.rw_bottomtexturemid += sidedef.rowoffset.to_float();
 
             // TODO: fix this. Enabed causes sprites to clip throguh some places
             // if sidedef.midtexture.is_some() {
@@ -434,10 +437,13 @@ impl SegRender {
             // if self.rw_normalangle.rad() - rdata.rw_angle1.rad() < PI * 2.0 {
             self.rw_offset = -self.rw_offset;
             //  }
-            self.rw_offset += sidedef.textureoffset + seg.offset;
-            self.rw_centerangle = mobj.angle - self.rw_normalangle;
+            self.rw_offset += (sidedef.textureoffset + seg.offset).to_float();
+            self.rw_centerangle = mobj.angle.to_float_angle() - self.rw_normalangle;
             self.wall_lights = (sidedef.sector.lightlevel >> 4) + player.extralight;
-            if (seg.angle.rad().abs() == PI || seg.angle.rad() == 0.0) && self.wall_lights > 0 {
+            if (seg.angle.to_float_angle().rad().abs() == PI
+                || seg.angle.to_float_angle().rad() == 0.0)
+                && self.wall_lights > 0
+            {
                 self.wall_lights -= 1;
             }
         }
@@ -584,7 +590,7 @@ impl SegRender {
                 yl = rdata.portal_clip.ceilingclip[clip_index] + 1.0;
             }
 
-            let x_angle = mobj.angle + self.screen_x[clip_index];
+            let x_angle = mobj.angle.to_float_angle() + self.screen_x[clip_index];
             let cos = x_angle.cos();
             let sin = x_angle.sin();
             let distscale = self.screen_x_scale[self.rw_startx as u32 as usize];
@@ -599,7 +605,9 @@ impl SegRender {
                         let screen_x_degrees =
                             screen_to_angle(self.fov, self.rw_startx, size.half_width_f32());
                         let sky_angle =
-                            (mobj.angle.rad() + screen_x_degrees + TAU * 2.).to_degrees() * 2.8444; // 2.8444 seems to give the corect skybox width
+                            (mobj.angle.to_float_angle().rad() + screen_x_degrees + TAU * 2.)
+                                .to_degrees()
+                                * 2.8444; // 2.8444 seems to give the corect skybox width
                         let sky_column = pic_data
                             .wall_pic_column(pic_data.sky_pic(), sky_angle.abs() as u32 as usize);
 
@@ -621,8 +629,8 @@ impl SegRender {
                     } else {
                         self.draw_flat_column(
                             ceil_tex,
-                            mobj.xy,
-                            ceil_height,
+                            mobj.xy.to_vec_2(),
+                            ceil_height.to_float(),
                             flats_total_light,
                             cos,
                             sin,
@@ -659,8 +667,8 @@ impl SegRender {
                     rdata.portal_clip.floorclip[clip_index] = top + 1.0;
                     self.draw_flat_column(
                         floor_tex,
-                        mobj.xy,
-                        floor_height,
+                        mobj.xy.to_vec_2(),
+                        floor_height.to_float(),
                         flats_total_light,
                         cos,
                         sin,
@@ -707,7 +715,7 @@ impl SegRender {
                             sleep(Duration::from_millis(1));
                         }
                     };
-                    rdata.portal_clip.ceilingclip[clip_index] = player.viewheight;
+                    rdata.portal_clip.ceilingclip[clip_index] = player.viewheight.to_float();
                     rdata.portal_clip.floorclip[clip_index] = -1.0;
                 }
             } else {

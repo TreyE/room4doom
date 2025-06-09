@@ -1,6 +1,7 @@
 //! Traits and interface structs/enums required for a generalised `SoundServer`
 //! to play music and sound effects.
 
+use math::fixed_t;
 use std::fmt::Debug;
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::Duration;
@@ -21,8 +22,8 @@ pub enum SoundAction<S: Debug + Copy, M: Debug> {
         /// The Sound effect this object has
         sfx: S,
         /// The world XY coords of this object
-        x: f32,
-        y: f32,
+        x: fixed_t,
+        y: fixed_t,
     },
     /// Where in the world the listener is
     UpdateListener {
@@ -30,8 +31,8 @@ pub enum SoundAction<S: Debug + Copy, M: Debug> {
         /// sounds relative to the player
         uid: usize,
         /// The world XY coords of this object
-        x: f32,
-        y: f32,
+        x: fixed_t,
+        y: fixed_t,
         /// Get the angle of this object in radians
         angle: f32,
     },
@@ -66,10 +67,10 @@ where
     fn init(&mut self) -> InitResult<S, M, E>;
 
     /// Playback a sound
-    fn start_sound(&mut self, uid: usize, sfx: S, x: f32, y: f32);
+    fn start_sound(&mut self, uid: usize, sfx: S, x: fixed_t, y: fixed_t);
 
     /// Update a sounds parameters
-    fn update_listener(&mut self, uid: usize, x: f32, y: f32, angle: f32);
+    fn update_listener(&mut self, uid: usize, x: fixed_t, y: fixed_t, angle: f32);
 
     /// Stop this sound playback
     fn stop_sound(&mut self, uid: usize);
@@ -144,6 +145,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use math::fixed_t;
     use std::error::Error;
     use std::f32::consts::FRAC_PI_2;
     use std::fmt::Display;
@@ -187,11 +189,11 @@ mod tests {
             Ok(self.tx.clone())
         }
 
-        fn start_sound(&mut self, uid: usize, sfx: SndFx, x: f32, y: f32) {
+        fn start_sound(&mut self, uid: usize, sfx: SndFx, x: fixed_t, y: fixed_t) {
             dbg!(uid, sfx, x, y);
         }
 
-        fn update_listener(&mut self, uid: usize, x: f32, y: f32, angle: f32) {
+        fn update_listener(&mut self, uid: usize, x: fixed_t, y: fixed_t, angle: f32) {
             dbg!(uid, x, y, angle);
         }
 
@@ -246,14 +248,14 @@ mod tests {
         tx.send(SoundAction::StartSfx {
             uid: 123,
             sfx: SndFx::One,
-            x: 0.3,
-            y: 0.3,
+            x: fixed_t::from_float(0.3),
+            y: fixed_t::from_float(0.3),
         })
         .unwrap();
         tx.send(SoundAction::UpdateListener {
             uid: 42,
-            x: 0.3,
-            y: 0.3,
+            x: fixed_t::from_float(0.3),
+            y: fixed_t::from_float(0.3),
             angle: FRAC_PI_2,
         })
         .unwrap();
@@ -263,14 +265,14 @@ mod tests {
         tx.send(SoundAction::StartSfx {
             uid: 123,
             sfx: SndFx::One,
-            x: 0.3,
-            y: 0.3,
+            x: fixed_t::from_float(0.3),
+            y: fixed_t::from_float(0.3),
         })
         .unwrap();
         tx.send(SoundAction::UpdateListener {
             uid: 42,
-            x: 0.3,
-            y: 0.3,
+            x: fixed_t::from_float(0.3),
+            y: fixed_t::from_float(0.3),
             angle: FRAC_PI_2,
         })
         .unwrap();

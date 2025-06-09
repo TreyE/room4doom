@@ -160,13 +160,17 @@ impl DoomguyFace {
                 // if status.attacked_angle_count != 0 {}
                 let i;
                 let diffang;
-                if status.attacked_from.rad() > status.own_angle.rad() {
+                if status.attacked_from.to_float_angle().rad()
+                    > status.own_angle.to_float_angle().rad()
+                {
                     // whether right or left
-                    diffang = status.attacked_from.rad() - status.own_angle.rad();
+                    diffang = status.attacked_from.to_float_angle().rad()
+                        - status.own_angle.to_float_angle().rad();
                     i = diffang > PI;
                 } else {
                     // whether left or right
-                    diffang = status.own_angle.rad() - status.attacked_from.rad();
+                    diffang = status.own_angle.to_float_angle().rad()
+                        - status.attacked_from.to_float_angle().rad();
                     i = diffang <= PI;
                 }
 

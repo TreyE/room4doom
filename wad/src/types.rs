@@ -3,6 +3,7 @@ use std::str;
 use log::error;
 
 use crate::Lump;
+use math::fixed_t;
 
 const SOFT_PIXEL_CHANNELS: usize = 4;
 
@@ -222,12 +223,12 @@ impl WadThing {
 /// The parsing for OG Doom should still be using i16 size (and convert it).
 #[derive(Debug, Default, Clone)]
 pub struct WadVertex {
-    pub x: f32,
-    pub y: f32,
+    pub x: fixed_t,
+    pub y: fixed_t,
 }
 
 impl WadVertex {
-    pub fn new(x: f32, y: f32) -> WadVertex {
+    pub fn new(x: fixed_t, y: fixed_t) -> WadVertex {
         WadVertex { x, y }
     }
 }

@@ -3,6 +3,7 @@
 //! Doom source name `p_doors`
 
 use log::{debug, error, warn};
+use math::{FT_FOUR, FT_TWO, FT_ZERO, fixed_t};
 use sound_traits::SfxName;
 use std::fmt::{self, Formatter};
 use std::ptr::null_mut;
@@ -18,9 +19,9 @@ use crate::{LineDefFlags, MapPtr};
 use crate::env::specials::{PlaneResult, find_lowest_ceiling_surrounding, move_plane};
 use crate::env::switch::start_sector_sound;
 
-const VDOOR: f32 = 2.0;
+const VDOOR: fixed_t = FT_TWO;
 const VDOORWAIT: i32 = 150;
-const VDOORSPEED: f32 = 2.0;
+const VDOORSPEED: fixed_t = fixed_t(2 << 16);
 
 #[derive(Debug, Clone, Copy)]
 pub enum DoorKind {
@@ -38,8 +39,8 @@ pub struct VerticalDoor {
     pub thinker: *mut Thinker,
     pub sector: MapPtr<Sector>,
     pub kind: DoorKind,
-    pub topheight: f32,
-    pub speed: f32,
+    pub topheight: fixed_t,
+    pub speed: fixed_t,
     // 1 = up, 0 = waiting, -1 = down
     pub direction: i32,
     // tics to wait at the top
@@ -226,7 +227,7 @@ pub fn ev_do_door(line: MapPtr<LineDef>, kind: DoorKind, level: &mut Level) -> b
             thinker: null_mut(),
             sector: MapPtr::new(sector),
             kind,
-            topheight: 0.0,
+            topheight: FT_ZERO,
             speed: VDOORSPEED,
             direction: 1,
             topwait: VDOORWAIT,
@@ -237,7 +238,7 @@ pub fn ev_do_door(line: MapPtr<LineDef>, kind: DoorKind, level: &mut Level) -> b
         match kind {
             DoorKind::Normal | DoorKind::Open => {
                 door.topheight = top;
-                door.topheight -= 4.0;
+                door.topheight -= FT_FOUR;
                 door.direction = 1;
                 if door.topheight != sec.ceilingheight {
                     start_sector_sound(&line, SfxName::Doropn, &level.snd_command);
@@ -245,18 +246,18 @@ pub fn ev_do_door(line: MapPtr<LineDef>, kind: DoorKind, level: &mut Level) -> b
             }
             DoorKind::BlazeRaise | DoorKind::BlazeOpen => {
                 door.topheight = top;
-                door.topheight -= 4.0;
+                door.topheight -= FT_FOUR;
                 door.direction = 1;
-                door.speed *= 4.0;
+                door.speed *= FT_FOUR;
                 if door.topheight != sec.ceilingheight {
                     start_sector_sound(&line, SfxName::Bdopn, &level.snd_command);
                 }
             }
             DoorKind::BlazeClose => {
                 door.topheight = top;
-                door.topheight -= 4.0;
+                door.topheight -= FT_FOUR;
                 door.direction = -1;
-                door.speed *= 4.0;
+                door.speed *= FT_FOUR;
                 start_sector_sound(&line, SfxName::Bdcls, &level.snd_command);
             }
             DoorKind::Close30ThenOpen => {
@@ -266,7 +267,7 @@ pub fn ev_do_door(line: MapPtr<LineDef>, kind: DoorKind, level: &mut Level) -> b
             }
             DoorKind::Close => {
                 door.topheight = top;
-                door.topheight -= 4.0;
+                door.topheight -= FT_FOUR;
                 door.direction = -1;
                 start_sector_sound(&line, SfxName::Dorcls, &level.snd_command);
             }
@@ -364,7 +365,7 @@ pub fn ev_vertical_door(mut line: MapPtr<LineDef>, thing: &mut MapObject, level:
         thinker: null_mut(),
         sector: sec.clone(),
         kind: DoorKind::Normal,
-        topheight: 0.0,
+        topheight: FT_ZERO,
         speed: VDOORSPEED,
         direction: 1,
         topwait: VDOORWAIT,
@@ -383,13 +384,13 @@ pub fn ev_vertical_door(mut line: MapPtr<LineDef>, thing: &mut MapObject, level:
         }
         117 => {
             door.kind = DoorKind::BlazeRaise;
-            door.speed = VDOOR * 2.0;
+            door.speed = VDOOR * FT_TWO;
             start_sector_sound(&line, SfxName::Bdopn, &level.snd_command);
         }
         118 => {
             door.kind = DoorKind::BlazeOpen;
             line.special = 0;
-            door.speed = VDOOR * 2.0;
+            door.speed = VDOOR * FT_TWO;
             start_sector_sound(&line, SfxName::Bdopn, &level.snd_command);
         }
         _ => {
@@ -398,7 +399,7 @@ pub fn ev_vertical_door(mut line: MapPtr<LineDef>, thing: &mut MapObject, level:
     }
 
     door.topheight = find_lowest_ceiling_surrounding(sec.clone());
-    door.topheight -= 4.0;
+    door.topheight -= FT_FOUR;
 
     debug!("Activated door: {door:?}");
     let thinker = MapObject::create_thinker(ThinkerData::VerticalDoor(door), VerticalDoor::think);

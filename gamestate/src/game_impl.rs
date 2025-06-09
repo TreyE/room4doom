@@ -1,6 +1,7 @@
 use crate::Game;
 use gameplay::{GameAction, GameMode, Skill, WorldEndPlayerInfo};
 use gamestate_traits::{GameTraits, PlayerStatus, WorldInfo};
+use math::FT_ZERO;
 use sound_traits::{EPISODE4_MUS, MusTrack, SfxName, SoundAction};
 use wad::WadData;
 
@@ -45,8 +46,8 @@ impl GameTraits for Game {
         let sfx = SoundAction::StartSfx {
             uid: 0,
             sfx,
-            x: 0.0,
-            y: 0.0,
+            x: FT_ZERO,
+            y: FT_ZERO,
         };
         self.sound_cmd.send(sfx).unwrap();
     }

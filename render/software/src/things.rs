@@ -7,6 +7,7 @@ use gameplay::{
     point_to_angle_2,
 };
 use glam::Vec2;
+use math::{VecF2, fixed_t};
 use render_trait::{PixelBuffer, RenderTrait};
 
 use super::bsp::SoftwareRenderer;
@@ -131,20 +132,20 @@ impl SoftwareRenderer {
         }
 
         let player_mobj = unsafe { player.mobj_unchecked() };
-        let view_cos = player_mobj.angle.cos();
-        let view_sin = player_mobj.angle.sin();
+        let view_cos = player_mobj.angle.to_float_angle().cos();
+        let view_sin = player_mobj.angle.to_float_angle().sin();
 
         // transform the origin point
         let tr_x = thing.xy.x - player_mobj.xy.x;
         let tr_y = thing.xy.y - player_mobj.xy.y;
-        let tz = (tr_x * view_cos) - -(tr_y * view_sin);
+        let tz = (tr_x.to_float() * view_cos) - -(tr_y.to_float() * view_sin);
 
         // Is it behind the view?
         if tz < 10.0 {
             return true; // keep checking
         }
 
-        let mut tx = (tr_x * view_sin) - (tr_y * view_cos);
+        let mut tx = (tr_x.to_float() * view_sin) - (tr_y.to_float() * view_cos);
         // too far off the side?
         if tx.abs() as i32 >= (tz.abs() as i32) * 2 {
             return true;
@@ -167,8 +168,9 @@ impl SoftwareRenderer {
         let patch_index;
         let flip;
         if sprite_frame.rotate == 1 {
-            let angle = point_to_angle_2(player_mobj.xy, thing.xy);
-            let rot = ((angle - thing.angle + FRAME_ROT_OFFSET).rad()) * FRAME_ROT_SELECT;
+            let angle = point_to_angle_2(player_mobj.xy, thing.xy).to_float_angle();
+            let rot = ((angle - thing.angle.to_float_angle() + FRAME_ROT_OFFSET).rad())
+                * FRAME_ROT_SELECT;
             patch_index = sprite_frame.lump[rot as u32 as usize] as u32 as usize;
             patch = pic_data.sprite_patch(patch_index);
             flip = sprite_frame.flip[rot as u32 as usize];
@@ -203,11 +205,11 @@ impl SoftwareRenderer {
         let vis = self.new_vissprite();
         vis.mobj_flags = thing.flags;
         vis.scale = x_scale * y_scale; // Note: increase Y
-        vis.gx = thing.xy.x;
-        vis.gy = thing.xy.y;
-        vis.gz = thing.z;
-        vis.gzt = thing.z + patch.top_offset as f32;
-        vis.texture_mid = vis.gzt - player.viewz;
+        vis.gx = thing.xy.x.to_float();
+        vis.gy = thing.xy.y.to_float();
+        vis.gz = thing.z.to_float();
+        vis.gzt = (thing.z + fixed_t::from_int(patch.top_offset)).to_float();
+        vis.texture_mid = vis.gzt - player.viewz.to_float();
         vis.x1 = if x1 < 0.0 { 0.0 } else { x1 };
         vis.x2 = if x2 >= screen_width as f32 {
             screen_width as f32 - 1.0
@@ -334,11 +336,10 @@ impl SoftwareRenderer {
             unsafe {
                 if scale <= vis.scale
                     || (lowscale < vis.scale
-                        && seg
-                            .curline
-                            .as_ref()
-                            .point_on_side(Vec2::new(vis.gx, vis.gy))
-                            == 0)
+                        && seg.curline.as_ref().point_on_side(VecF2::new(
+                            fixed_t::from_float(vis.gx),
+                            fixed_t::from_float(vis.gy),
+                        )) == 0)
                 {
                     if seg.maskedtexturecol != -1.0 {
                         self.render_masked_seg_range(player, seg, r1, r2, pic_data, rend);
@@ -426,7 +427,7 @@ impl SoftwareRenderer {
         let patch = pic_data.sprite_patch(frame.lump[0] as u32 as usize);
         let flip = frame.flip[0];
         // 160.0 is pretty much a hardcoded number to center the weapon always
-        let mut tx = sprite.sx - 160.0 - patch.left_offset as f32;
+        let mut tx = sprite.sx.to_float() - 160.0 - patch.left_offset as f32;
         let x_offset = pspritescale / self.y_scale;
         let x1 = size.half_width_f32() + (tx * x_offset);
 
@@ -444,7 +445,7 @@ impl SoftwareRenderer {
         vis.mobj_flags = flags;
         vis.patch = frame.lump[0] as u32 as usize;
         // -(sprite.sy.floor() - patch.top_offset as f32);
-        vis.texture_mid = 100.0 - (sprite.sy - patch.top_offset as f32);
+        vis.texture_mid = 100.0 - (sprite.sy.to_float() - patch.top_offset as f32);
         let tmp = self.seg_renderer.centery - size.half_height_f32();
         if size.hi_res() {
             vis.texture_mid += tmp / 2.0;
@@ -536,7 +537,8 @@ impl SoftwareRenderer {
                 };
 
                 let texture_column = pic_data.wall_pic_column(texnum, 0);
-                dc_texturemid += (texture_column.len() - 1) as f32 - player.viewz;
+                dc_texturemid +=
+                    fixed_t::from_int((texture_column.len() - 1) as i32) - player.viewz;
             } else {
                 dc_texturemid = if frontsector.ceilingheight < backsector.ceilingheight {
                     frontsector.ceilingheight
@@ -584,7 +586,8 @@ impl SoftwareRenderer {
                     }
 
                     // calculate unclipped screen coordinates for post
-                    let sprtopscreen = self.seg_renderer.centery - dc_texturemid * spryscale;
+                    let sprtopscreen =
+                        self.seg_renderer.centery - dc_texturemid.to_float() * spryscale;
                     let mut top = sprtopscreen.round(); // TODO: possible glitch
                     let mut bottom = top + 1.0 + (spryscale * texture_column.len() as f32).round();
 
@@ -602,7 +605,7 @@ impl SoftwareRenderer {
                         1.0 / spryscale,
                         self.seg_renderer.centery,
                         x,
-                        dc_texturemid,
+                        dc_texturemid.to_float(),
                         top,
                         bottom,
                         pic_data,

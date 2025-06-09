@@ -7,8 +7,11 @@ use crate::MapPtr;
 use crate::level::Level;
 use crate::level::map_data::BSPTrace;
 use crate::level::map_defs::{BBox, LineDef, SlopeType};
-use glam::Vec2;
-use math::{Trace, circle_seg_collide, intercept_vector, point_on_side};
+use math::{
+    FT_MAX, FT_ONE, FT_ZERO, Trace, VecF2, circle_seg_collide, fixed_t, intercept_vector,
+    point_on_side,
+};
+use sound_sdl2::point_to_angle_2;
 
 /// Returns -1 if the line runs through the box at all
 #[inline]
@@ -26,12 +29,12 @@ pub fn box_on_line_side(tmbox: &BBox, ld: &LineDef) -> i32 {
             p2 = (tmbox.left > ld.v1.x) as i32;
         }
         SlopeType::Positive => {
-            p1 = ld.point_on_side(Vec2::new(tmbox.left, tmbox.top)) as i32;
-            p2 = ld.point_on_side(Vec2::new(tmbox.right, tmbox.bottom)) as i32;
+            p1 = ld.point_on_side(VecF2::new(tmbox.left, tmbox.top)) as i32;
+            p2 = ld.point_on_side(VecF2::new(tmbox.right, tmbox.bottom)) as i32;
         }
         SlopeType::Negative => {
-            p1 = ld.point_on_side(Vec2::new(tmbox.right, tmbox.top)) as i32;
-            p2 = ld.point_on_side(Vec2::new(tmbox.left, tmbox.bottom)) as i32;
+            p1 = ld.point_on_side(VecF2::new(tmbox.right, tmbox.top)) as i32;
+            p2 = ld.point_on_side(VecF2::new(tmbox.left, tmbox.bottom)) as i32;
         }
     }
 
@@ -44,7 +47,7 @@ pub fn box_on_line_side(tmbox: &BBox, ld: &LineDef) -> i32 {
 
 #[derive(Default, Clone, PartialEq)]
 pub struct Intercept {
-    pub frac: f32,
+    pub frac: fixed_t,
     pub line: Option<MapPtr<LineDef>>,
     pub thing: Option<MapPtr<MapObject>>,
 }
@@ -73,8 +76,8 @@ impl Eq for Intercept {}
 
 #[derive(Default)]
 pub struct BestSlide {
-    pub best_slide_frac: f32,
-    pub second_slide_frac: f32,
+    pub best_slide_frac: fixed_t,
+    pub second_slide_frac: fixed_t,
     pub best_slide_line: Option<MapPtr<LineDef>>,
     pub second_slide_line: Option<MapPtr<LineDef>>,
 }
@@ -83,7 +86,7 @@ impl BestSlide {
     #[inline]
     pub fn new() -> Self {
         BestSlide {
-            best_slide_frac: 1.0,
+            best_slide_frac: FT_ONE,
             ..Default::default()
         }
     }
@@ -93,13 +96,13 @@ impl BestSlide {
 #[derive(Default, Debug)]
 pub struct PortalZ {
     /// The lowest ceiling of the portal line
-    pub top_z: f32,
+    pub top_z: fixed_t,
     /// The highest floor of the portal line
-    pub bottom_z: f32,
+    pub bottom_z: fixed_t,
     /// Range between `bottom_z` and `top_z`
-    pub range: f32,
+    pub range: fixed_t,
     /// The lowest floor of the portal line
-    pub lowest_z: f32,
+    pub lowest_z: fixed_t,
 }
 
 impl PortalZ {
@@ -113,10 +116,10 @@ impl PortalZ {
         let back = unsafe { line.backsector.as_ref().unwrap_unchecked() };
 
         let mut ww = PortalZ {
-            top_z: 0.0,
-            bottom_z: 0.0,
-            range: 0.0,
-            lowest_z: 0.0,
+            top_z: FT_ZERO,
+            bottom_z: FT_ZERO,
+            range: FT_ZERO,
+            lowest_z: FT_ZERO,
         };
 
         if front.ceilingheight < back.ceilingheight {
@@ -139,8 +142,8 @@ impl PortalZ {
 }
 
 pub fn path_traverse(
-    origin: Vec2,
-    endpoint: Vec2,
+    origin: VecF2,
+    endpoint: VecF2,
     flags: i32,
     level: &mut Level,
     trav: impl FnMut(&mut Intercept) -> bool,
@@ -181,13 +184,13 @@ pub fn path_traverse(
 
     intercepts.sort();
 
-    traverse_intercepts(&mut intercepts, 1.0, trav)
+    traverse_intercepts(&mut intercepts, fixed_t::from_float(1.0), trav)
 }
 
 #[inline]
 pub fn traverse_intercepts(
     intercepts: &mut [Intercept],
-    max_frac: f32,
+    max_frac: fixed_t,
     mut trav: impl FnMut(&mut Intercept) -> bool,
 ) -> bool {
     if intercepts.is_empty() {
@@ -199,7 +202,7 @@ pub fn traverse_intercepts(
 
     while count != 0 {
         count -= 1;
-        let mut dist = f32::MAX;
+        let mut dist = FT_MAX;
 
         for i in intercepts.iter_mut() {
             if i.frac < dist {
@@ -217,7 +220,7 @@ pub fn traverse_intercepts(
                 return false;
             }
 
-            (*intercept).frac = f32::MAX;
+            (*intercept).frac = FT_MAX;
         }
     }
     true
@@ -249,11 +252,11 @@ pub fn add_line_intercepts(
         return true;
     }
 
-    if earlyout && frac < 1.0 && line.backsector.is_none() {
+    if earlyout && frac < fixed_t::from_int(1) && line.backsector.is_none() {
         return false;
     }
 
-    if line.backsector.is_none() && frac < 0.0 {
+    if line.backsector.is_none() && frac < FT_ZERO {
         return false;
     }
 
@@ -287,7 +290,12 @@ fn add_thing_intercept(
     }
     // Get vector clockwise-perpendicular to trace
     let r = thing.radius;
-    let p = Vec2::new(trace.xy.y, -trace.xy.x).normalize() * r;
+    let a = math::point_to_angle_2(
+        VecF2::new(FT_ZERO, FT_ZERO),
+        VecF2::new(trace.xy.y, trace.xy.y),
+    )
+    .unit();
+    let p = a * r;
     let v1 = thing.xy + p;
     let v2 = thing.xy - p;
 

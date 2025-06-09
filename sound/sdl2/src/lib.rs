@@ -5,6 +5,7 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 
 use glam::Vec2;
 use log::{debug, info};
+use math::{VecF2, fixed_t};
 use sdl2::AudioSubsystem;
 use sdl2::audio::{AudioCVT, AudioFormat};
 use sdl2::mixer::{AUDIO_S16LSB, Chunk, DEFAULT_CHANNELS, InitFlag, Music, Sdl2MixerContext};
@@ -21,7 +22,7 @@ pub mod timidity;
 #[cfg(test)]
 mod test_sdl2;
 
-const MAX_DIST: f32 = 1666.0;
+const MAX_DIST: fixed_t = fixed_t::from_float(1666.0);
 const MIXER_CHANNELS: i32 = 32;
 const MUS_ID: [u8; 4] = [b'M', b'U', b'S', 0x1A];
 const MID_ID: [u8; 4] = [b'M', b'T', b'h', b'd'];
@@ -29,10 +30,10 @@ const MID_ID: [u8; 4] = [b'M', b'T', b'h', b'd'];
 pub type SndServerRx = Receiver<SoundAction<SfxName, usize>>;
 pub type SndServerTx = Sender<SoundAction<SfxName, usize>>;
 
-pub fn point_to_angle_2(x1: f32, y1: f32, x2: f32, y2: f32) -> f32 {
+pub fn point_to_angle_2(x1: fixed_t, y1: fixed_t, x2: fixed_t, y2: fixed_t) -> f32 {
     let x = x1 - x2;
     let y = y1 - y2;
-    y.atan2(x)
+    y.atan2(x).to_float()
 }
 
 pub fn angle_between(listener_angle: f32, other_x: f32, other_y: f32) -> f32 {
@@ -53,8 +54,8 @@ where
     /// The Sound effect this object has
     _sfx: S,
     /// The world XY coords of this object
-    x: f32,
-    y: f32,
+    x: fixed_t,
+    y: fixed_t,
     /// Get the angle of this object in radians
     angle: f32,
     /// Channel allocated to it (internal)
@@ -201,7 +202,7 @@ impl<'a> Snd<'a> {
         })
     }
 
-    fn listener_to_source_angle(&self, sx: f32, sy: f32) -> f32 {
+    fn listener_to_source_angle(&self, sx: fixed_t, sy: fixed_t) -> f32 {
         let (y, x) = point_to_angle_2(sx, sy, self.listener.x, self.listener.y).sin_cos();
         let mut angle = angle_between(self.listener.angle, x, y);
         if angle.is_sign_negative() {
@@ -210,14 +211,14 @@ impl<'a> Snd<'a> {
         360.0 - angle.to_degrees()
     }
 
-    fn dist_from_listener(&self, sx: f32, sy: f32) -> f32 {
+    fn dist_from_listener(&self, sx: fixed_t, sy: fixed_t) -> fixed_t {
         let dx = self.listener.x - sx;
         let dy = self.listener.y - sy;
-        (dx.powf(2.0) + dy.powf(2.0)).sqrt().abs()
+        VecF2::new(dx, dy).length()
     }
 
-    fn dist_scale_sdl2(dist: f32) -> f32 {
-        dist * 255.0 / MAX_DIST
+    fn dist_scale_sdl2(dist: fixed_t) -> fixed_t {
+        dist * fixed_t::from_int(255) / MAX_DIST
     }
 }
 
@@ -226,7 +227,7 @@ impl<'a> SoundServer<SfxName, usize, sdl2::Error> for Snd<'a> {
         Ok(self.tx.clone())
     }
 
-    fn start_sound(&mut self, uid: usize, sfx: SfxName, mut x: f32, mut y: f32) {
+    fn start_sound(&mut self, uid: usize, sfx: SfxName, mut x: fixed_t, mut y: fixed_t) {
         if uid == 0 {
             x = self.listener.x;
             y = self.listener.y;
@@ -263,7 +264,7 @@ impl<'a> SoundServer<SfxName, usize, sdl2::Error> for Snd<'a> {
                 if !sdl2::mixer::Channel(c).is_playing() || sdl2::mixer::Channel(c).is_paused() {
                     if origin.uid != self.listener.uid {
                         sdl2::mixer::Channel(c)
-                            .set_position(angle as i16, dist as u8)
+                            .set_position(angle as i16, dist.to_u8())
                             .unwrap();
                     }
                     sdl2::mixer::Channel(c).play(sfx, 0).unwrap();
@@ -280,7 +281,7 @@ impl<'a> SoundServer<SfxName, usize, sdl2::Error> for Snd<'a> {
                         sdl2::mixer::Channel(c).halt();
                         if origin.uid != self.listener.uid {
                             sdl2::mixer::Channel(c)
-                                .set_position(angle as i16, dist as u8)
+                                .set_position(angle as i16, dist.to_u8())
                                 .unwrap();
                         }
                         sdl2::mixer::Channel(c).play(sfx, 0).unwrap();
@@ -293,7 +294,7 @@ impl<'a> SoundServer<SfxName, usize, sdl2::Error> for Snd<'a> {
         }
     }
 
-    fn update_listener(&mut self, uid: usize, x: f32, y: f32, angle: f32) {
+    fn update_listener(&mut self, uid: usize, x: fixed_t, y: fixed_t, angle: f32) {
         self.listener.uid = uid;
         self.listener.x = x;
         self.listener.y = y;
@@ -316,7 +317,7 @@ impl<'a> SoundServer<SfxName, usize, sdl2::Error> for Snd<'a> {
                 }
 
                 sdl2::mixer::Channel(s.channel)
-                    .set_position(angle as i16, dist as u8)
+                    .set_position(angle as i16, dist.to_u8())
                     .unwrap();
             }
         }

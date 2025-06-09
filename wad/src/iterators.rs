@@ -5,6 +5,8 @@ use crate::types::*;
 use crate::{Lump, MapLump, WadData};
 use std::marker::PhantomData;
 
+use math::fixed_t;
+
 /// An iterator to iter over all items between start and end (exclusive),
 /// skipping zero-sized lumps. This is good for iterating over flats for
 /// example, as each `LumpInfo` also contains the name of the flat and is in
@@ -362,7 +364,9 @@ impl WadData {
             lump_offset: 0,
             current: 0,
             transformer: move |ofs| {
-                WadVertex::new(info.read_i16(ofs) as f32, info.read_i16(ofs + 2) as f32)
+                let x = info.read_i16(ofs) as i32;
+                let y = info.read_i16(ofs + 2) as i32;
+                WadVertex::new(fixed_t::from_int(x), fixed_t::from_int(y))
             },
             _phantom: Default::default(),
         }

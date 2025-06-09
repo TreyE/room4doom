@@ -14,7 +14,9 @@ use crate::thinker::{Think, Thinker, ThinkerData};
 use crate::env::specials::{PlaneResult, find_highest_ceiling_surrounding, move_plane};
 use crate::env::switch::start_sector_sound;
 
-const CEILSPEED: f32 = 1.0;
+use math::{FT_EIGHT, FT_TWO, FT_ZERO, fixed_t};
+
+const CEILSPEED: fixed_t = fixed_t(1 << 16);
 
 #[derive(Debug, Clone, Copy)]
 pub enum CeilKind {
@@ -30,9 +32,9 @@ pub struct CeilingMove {
     pub thinker: *mut Thinker,
     pub sector: MapPtr<Sector>,
     pub kind: CeilKind,
-    pub bottomheight: f32,
-    pub topheight: f32,
-    pub speed: f32,
+    pub bottomheight: fixed_t,
+    pub topheight: fixed_t,
+    pub speed: fixed_t,
     pub crush: bool,
     // 1 = up, 0 = waiting, -1 = down
     pub direction: i32,
@@ -74,8 +76,8 @@ pub fn ev_do_ceiling(line: MapPtr<LineDef>, kind: CeilKind, level: &mut Level) -
             speed: CEILSPEED,
             crush: false,
             direction: 0,
-            bottomheight: 0.0,
-            topheight: 0.0,
+            bottomheight: FT_ZERO,
+            topheight: FT_ZERO,
             tag: sec.tag,
             olddirection: 0,
         };
@@ -95,21 +97,21 @@ pub fn ev_do_ceiling(line: MapPtr<LineDef>, kind: CeilKind, level: &mut Level) -
             CeilKind::LowerAndCrush => {
                 ceiling.crush = true;
                 ceiling.topheight = sec.ceilingheight;
-                ceiling.bottomheight = sec.floorheight + 8.0;
+                ceiling.bottomheight = sec.floorheight + FT_EIGHT;
                 ceiling.direction = -1;
             }
             CeilKind::CrushAndRaise | CeilKind::SilentCrushAndRaise => {
                 ceiling.crush = true;
                 ceiling.topheight = sec.ceilingheight;
-                ceiling.bottomheight = sec.floorheight + 8.0;
+                ceiling.bottomheight = sec.floorheight + FT_EIGHT;
                 ceiling.direction = -1;
             }
             CeilKind::FastCrushAndRaise => {
                 ceiling.crush = true;
                 ceiling.topheight = sec.ceilingheight;
-                ceiling.bottomheight = sec.floorheight + 8.0;
+                ceiling.bottomheight = sec.floorheight + FT_EIGHT;
                 ceiling.direction = -1;
-                ceiling.speed *= 2.0;
+                ceiling.speed *= FT_TWO;
             }
         }
 
@@ -206,7 +208,7 @@ impl Think for CeilingMove {
                         CeilKind::SilentCrushAndRaise
                         | CeilKind::CrushAndRaise
                         | CeilKind::LowerAndCrush => {
-                            ceiling.speed = 0.2;
+                            ceiling.speed = fixed_t::from_float(0.2);
                         }
                         _ => ceiling.speed = CEILSPEED,
                     }

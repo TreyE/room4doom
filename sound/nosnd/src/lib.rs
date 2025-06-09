@@ -4,6 +4,7 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 
 use log::info;
 
+use math::fixed_t;
 use sound_traits::{InitResult, SfxName, SoundAction, SoundServer, SoundServerTic};
 use wad::WadData;
 
@@ -42,9 +43,9 @@ impl SoundServer<SfxName, usize, SndError> for Snd {
         Ok(self.tx.clone())
     }
 
-    fn start_sound(&mut self, _: usize, _: SfxName, mut _x: f32, mut _y: f32) {}
+    fn start_sound(&mut self, _: usize, _: SfxName, mut _x: fixed_t, mut _y: fixed_t) {}
 
-    fn update_listener(&mut self, _: usize, _: f32, _: f32, _: f32) {}
+    fn update_listener(&mut self, _: usize, _: fixed_t, _: fixed_t, _: f32) {}
 
     fn stop_sound(&mut self, _: usize) {}
 

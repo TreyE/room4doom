@@ -13,6 +13,7 @@ sound-sdl2.workspace = true
 sound-nosnd.workspace = true
 menu-doom.workspace = true
 wad.workspace = true
+math.workspace = true
 
 # utility deps
 nanoserde.workspace = true

@@ -1,7 +1,7 @@
 use crate::level::map_defs::Node;
 
 // use crate::play::utilities::ray_to_line_intersect;
-use glam::Vec2;
+use math::VecF2;
 
 impl Node {
     /// R_PointOnSide
@@ -9,7 +9,7 @@ impl Node {
     /// Determine with cross-product which side of a splitting line the point is
     /// on
     #[inline]
-    pub const fn point_on_side(&self, v: &Vec2) -> usize {
+    pub fn point_on_side(&self, v: &VecF2) -> usize {
         let dx = v.x - self.xy.x;
         let dy = v.y - self.xy.y;
 
@@ -20,7 +20,7 @@ impl Node {
     }
 
     #[inline]
-    pub const fn point_in_bounds(&self, v: Vec2, side: usize) -> bool {
+    pub fn point_in_bounds(&self, v: VecF2, side: usize) -> bool {
         if v.x > self.bboxes[side][0].x
             && v.x < self.bboxes[side][1].x
             && v.y < self.bboxes[side][0].y

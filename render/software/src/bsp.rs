@@ -12,6 +12,7 @@ use gameplay::{
     Angle, Level, MapData, MapObject, Node, PicData, Player, Sector, Segment, SubSector,
 };
 use glam::Vec2;
+use math::FloatAngle;
 use render_trait::{PixelBuffer, RenderTrait};
 use std::f32::consts::{FRAC_PI_2, PI};
 use std::mem;
@@ -172,15 +173,15 @@ impl SoftwareRenderer {
         profile!("add_line");
         let mobj = unsafe { player.mobj_unchecked() };
         // reject orthogonal back sides
-        let viewangle = mobj.angle;
+        let viewangle = mobj.angle.to_float_angle();
 
         // Blocks some zdoom segs rendering
         if !seg.is_facing_point(&mobj.xy) {
             return;
         }
 
-        let mut angle1 = vertex_angle_to_object(&seg.v1, mobj); // widescreen: Leave as is
-        let mut angle2 = vertex_angle_to_object(&seg.v2, mobj); // widescreen: Leave as is
+        let mut angle1 = vertex_angle_to_object(&seg.v1.to_vec_2(), mobj); // widescreen: Leave as is
+        let mut angle2 = vertex_angle_to_object(&seg.v2.to_vec_2(), mobj); // widescreen: Leave as is
 
         let span = (angle1 - angle2).rad();
         if span.abs() >= PI {
@@ -193,7 +194,7 @@ impl SoftwareRenderer {
         angle1 -= viewangle; // widescreen: Leave as is
         angle2 -= viewangle; // widescreen: Leave as is
 
-        let clipangle = Angle::new(self.seg_renderer.fov_half); // widescreen: Leave as is
+        let clipangle = FloatAngle::new(self.seg_renderer.fov_half); // widescreen: Leave as is
         let clipangrad = clipangle.rad();
         let mut tspan = angle1 + clipangle;
         if tspan.rad() >= 2.0 * clipangrad {
@@ -563,7 +564,7 @@ impl SoftwareRenderer {
     ) -> bool {
         #[cfg(feature = "hprof")]
         profile!("bb_extents_in_fov");
-        let view_angle = mobj.angle;
+        let view_angle = mobj.angle.to_float_angle();
         // BOXTOP = 0
         // BOXBOT = 1
         // BOXLEFT = 2
@@ -599,18 +600,24 @@ impl SoftwareRenderer {
         }
 
         let (v1, v2) = match boxpos {
-            0 => (Vec2::new(rb.x, lt.y), Vec2::new(lt.x, rb.y)),
-            1 => (Vec2::new(rb.x, lt.y), lt),
-            2 => (rb, lt),
-            4 => (lt, Vec2::new(lt.x, rb.y)),
-            6 => (rb, Vec2::new(rb.x, lt.y)),
-            8 => (lt, rb),
-            9 => (Vec2::new(lt.x, rb.y), rb),
-            10 => (Vec2::new(lt.x, rb.y), Vec2::new(rb.x, lt.y)),
+            0 => (
+                Vec2::new(rb.x.to_float(), lt.y.to_float()),
+                Vec2::new(lt.x.to_float(), rb.y.to_float()),
+            ),
+            1 => (Vec2::new(rb.x.to_float(), lt.y.to_float()), lt.to_vec_2()),
+            2 => (rb.to_vec_2(), lt.to_vec_2()),
+            4 => (lt.to_vec_2(), Vec2::new(lt.x.to_float(), rb.y.to_float())),
+            6 => (rb.to_vec_2(), Vec2::new(rb.x.to_float(), lt.y.to_float())),
+            8 => (lt.to_vec_2(), rb.to_vec_2()),
+            9 => (Vec2::new(lt.x.to_float(), rb.y.to_float()), rb.to_vec_2()),
+            10 => (
+                Vec2::new(lt.x.to_float(), rb.y.to_float()),
+                Vec2::new(rb.x.to_float(), lt.y.to_float()),
+            ),
             _ => (Vec2::new(0.0, 0.0), Vec2::new(0.0, 0.0)),
         };
 
-        let clipangle = Angle::new(self.seg_renderer.fov_half);
+        let clipangle = FloatAngle::new(self.seg_renderer.fov_half);
         let clipangrad = clipangle.rad();
         // Reset to correct angles
         let mut angle1 = vertex_angle_to_object(&v1, mobj);

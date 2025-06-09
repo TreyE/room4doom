@@ -9,7 +9,8 @@ use crate::env::ceiling::{CeilKind, ev_do_ceiling};
 use crate::env::doors::{DoorKind, ev_do_door};
 use crate::env::floor::{FloorKind, StairKind, ev_build_stairs, ev_do_floor};
 use crate::env::lights::{
-    FASTDARK, FireFlicker, Glow, LightFlash, SLOWDARK, StrobeFlash, ev_start_light_strobing, ev_turn_light_on, ev_turn_tag_lights_off
+    FASTDARK, FireFlicker, Glow, LightFlash, SLOWDARK, StrobeFlash, ev_start_light_strobing,
+    ev_turn_light_on, ev_turn_tag_lights_off,
 };
 use crate::env::platforms::{PlatKind, ev_do_platform, ev_stop_platform};
 use crate::env::switch::{change_switch_texture, start_sector_sound};
@@ -23,7 +24,7 @@ use crate::thing::MapObject;
 use crate::{Angle, MapObjFlag, MapPtr, PicData, TICRATE};
 use glam::Vec2;
 use log::{debug, error, trace};
-use math::circle_line_collide;
+use math::{FT_MAX, FT_ONE, FT_ZERO, VecF2, circle_line_collide, fixed_t};
 use sound_traits::SfxName;
 use std::ptr;
 
@@ -66,8 +67,8 @@ pub fn find_max_light_surrounding(sec: MapPtr<Sector>, mut max: usize) -> usize 
 }
 
 /// P_FindLowestCeilingSurrounding
-pub fn find_lowest_ceiling_surrounding(sec: MapPtr<Sector>) -> f32 {
-    let mut height = f32::MAX;
+pub fn find_lowest_ceiling_surrounding(sec: MapPtr<Sector>) -> fixed_t {
+    let mut height = fixed_t::new(i32::MAX);
     for line in &sec.lines {
         if let Some(other) = get_next_sector(line.clone(), sec.clone()) {
             if other.ceilingheight < height {
@@ -80,8 +81,8 @@ pub fn find_lowest_ceiling_surrounding(sec: MapPtr<Sector>) -> f32 {
 }
 
 /// P_FindHighestCeilingSurrounding
-pub fn find_highest_ceiling_surrounding(sec: MapPtr<Sector>) -> f32 {
-    let mut height = 0.0;
+pub fn find_highest_ceiling_surrounding(sec: MapPtr<Sector>) -> fixed_t {
+    let mut height = FT_ZERO;
     for line in &sec.lines {
         if let Some(other) = get_next_sector(line.clone(), sec.clone()) {
             if other.ceilingheight > height {
@@ -94,7 +95,7 @@ pub fn find_highest_ceiling_surrounding(sec: MapPtr<Sector>) -> f32 {
 }
 
 /// P_FindLowestFloorSurrounding
-pub fn find_lowest_floor_surrounding(sec: MapPtr<Sector>) -> f32 {
+pub fn find_lowest_floor_surrounding(sec: MapPtr<Sector>) -> fixed_t {
     let mut floor = sec.floorheight;
     for line in &sec.lines {
         if let Some(other) = get_next_sector(line.clone(), sec.clone()) {
@@ -108,8 +109,8 @@ pub fn find_lowest_floor_surrounding(sec: MapPtr<Sector>) -> f32 {
 }
 
 /// P_FindHighestFloorSurrounding
-pub fn find_highest_floor_surrounding(sec: MapPtr<Sector>) -> f32 {
-    let mut floor = f32::MIN;
+pub fn find_highest_floor_surrounding(sec: MapPtr<Sector>) -> fixed_t {
+    let mut floor = fixed_t::new(i32::MIN);
     for line in &sec.lines {
         if let Some(other) = get_next_sector(line.clone(), sec.clone()) {
             if other.floorheight > floor {
@@ -122,7 +123,7 @@ pub fn find_highest_floor_surrounding(sec: MapPtr<Sector>) -> f32 {
 }
 
 /// P_FindNextHighestFloor
-pub fn find_next_highest_floor(sec: MapPtr<Sector>, current: f32) -> f32 {
+pub fn find_next_highest_floor(sec: MapPtr<Sector>, current: fixed_t) -> fixed_t {
     let mut height = current;
     let mut height_list = Vec::new();
 
@@ -199,8 +200,8 @@ pub enum PlaneResult {
 
 pub fn move_plane(
     mut sector: MapPtr<Sector>,
-    speed: f32,
-    dest: f32,
+    speed: fixed_t,
+    dest: fixed_t,
     crush: bool,
     floor_or_ceiling: i32,
     direction: i32,
@@ -899,9 +900,9 @@ pub fn update_specials(level: &mut Level, pic_data: &mut PicData) {
         }
     }
     for line in level.line_special_list.iter_mut() {
-        line.front_sidedef.textureoffset += 1.0;
-        if line.front_sidedef.textureoffset == f32::MAX {
-            line.front_sidedef.textureoffset = 0.0;
+        line.front_sidedef.textureoffset += FT_ONE;
+        if line.front_sidedef.textureoffset == FT_MAX {
+            line.front_sidedef.textureoffset = FT_ZERO;
         }
     }
 }
@@ -923,11 +924,11 @@ pub fn respawn_specials(level: &mut Level) {
     }
 
     if let Some(mthing) = level.respawn_queue.pop_back() {
-        let xy = Vec2::new(mthing.1.x as f32, mthing.1.y as f32);
+        let xy = VecF2::new(fixed_t::from_i16(mthing.1.x), fixed_t::from_i16(mthing.1.y));
 
         // spawn a teleport fog at the new spot
         let ss = level.map_data.point_in_subsector(xy);
-        let floor = ss.sector.floorheight as i32;
+        let floor = ss.sector.floorheight;
         let fog = unsafe {
             &mut *MapObject::spawn_map_object(xy.x, xy.y, floor, MapObjKind::MT_TFOG, level)
         };
@@ -958,7 +959,7 @@ pub fn respawn_specials(level: &mut Level) {
 
         // spawn it
         let thing = unsafe { &mut *MapObject::spawn_map_object(xy.x, xy.y, z, kind, level) };
-        thing.angle = Angle::new((mthing.1.angle as f32).to_radians());
+        thing.angle = Angle::from_i16(mthing.1.angle);
         thing.spawnpoint = mthing.1;
     }
 }

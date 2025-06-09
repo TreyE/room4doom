@@ -1,3 +1,4 @@
+use math::fixed_t;
 use sound_traits::{SfxName, SoundAction, SoundServer, SoundServerTic};
 use wad::WadData;
 
@@ -22,32 +23,32 @@ fn play_weapons_snd() {
     tx.send(SoundAction::StartSfx {
         uid: 123,
         sfx: SfxName::Pistol,
-        x: 0.3,
-        y: 0.3,
+        x: fixed_t::from_float(0.3),
+        y: fixed_t::from_float(0.3),
     })
     .unwrap();
     std::thread::sleep(std::time::Duration::from_millis(1000));
     tx.send(SoundAction::StartSfx {
         uid: 123,
         sfx: SfxName::Shotgn,
-        x: 0.3,
-        y: 0.3,
+        x: fixed_t::from_float(0.3),
+        y: fixed_t::from_float(0.3),
     })
     .unwrap();
     std::thread::sleep(std::time::Duration::from_millis(1000));
     tx.send(SoundAction::StartSfx {
         uid: 123,
         sfx: SfxName::Chgun,
-        x: 0.3,
-        y: 0.3,
+        x: fixed_t::from_float(0.3),
+        y: fixed_t::from_float(0.3),
     })
     .unwrap();
     std::thread::sleep(std::time::Duration::from_millis(1000));
     tx.send(SoundAction::StartSfx {
         uid: 123,
         sfx: SfxName::Rlaunc,
-        x: 0.3,
-        y: 0.3,
+        x: fixed_t::from_float(0.3),
+        y: fixed_t::from_float(0.3),
     })
     .unwrap();
     std::thread::sleep(std::time::Duration::from_millis(500));
@@ -75,24 +76,24 @@ fn play_demons_snd() {
     tx.send(SoundAction::StartSfx {
         uid: 123,
         sfx: SfxName::Bgsit1,
-        x: 0.3,
-        y: 0.3,
+        x: fixed_t::from_float(0.3),
+        y: fixed_t::from_float(0.3),
     })
     .unwrap();
     std::thread::sleep(std::time::Duration::from_millis(500));
     tx.send(SoundAction::StartSfx {
         uid: 123,
         sfx: SfxName::Bgdth1,
-        x: 0.3,
-        y: 0.3,
+        x: fixed_t::from_float(0.3),
+        y: fixed_t::from_float(0.3),
     })
     .unwrap();
     std::thread::sleep(std::time::Duration::from_millis(300));
     tx.send(SoundAction::StartSfx {
         uid: 123,
         sfx: SfxName::Posit2,
-        x: 0.3,
-        y: 0.3,
+        x: fixed_t::from_float(0.3),
+        y: fixed_t::from_float(0.3),
     })
     .unwrap();
     std::thread::sleep(std::time::Duration::from_millis(500));

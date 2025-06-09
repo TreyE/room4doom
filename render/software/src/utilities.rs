@@ -2,6 +2,7 @@ use std::f32::consts::FRAC_PI_2;
 
 use gameplay::{Angle, MapObject};
 use glam::Vec2;
+use math::FloatAngle;
 
 const ZERO_POINT_THREE: f32 = 0.0052359877;
 const OG_RATIO: f32 = 320. / 200.;
@@ -28,7 +29,7 @@ pub fn y_scale(fov: f32, buf_width: f32, buf_height: f32) -> f32 {
 }
 
 pub const fn projection(fov: f32, screen_width_half: f32) -> f32 {
-    screen_width_half / Angle::new(fov / 2.0 - ZERO_POINT_THREE).tan()
+    screen_width_half / FloatAngle::new(fov / 2.0 - ZERO_POINT_THREE).tan()
 }
 
 /// Used to build a table for drawing process. The table cuts out a huge amount
@@ -50,7 +51,12 @@ pub fn point_to_dist(x: f32, y: f32, to: Vec2) -> f32 {
 
 // The viewangletox LUT as a funtion. Should maybe turn this in back in to a LUT
 // The out value if floored and clamped to the screen width min/max.
-pub fn angle_to_screen(fov: f32, half_screen_width: f32, screen_width: f32, angle: Angle) -> f32 {
+pub fn angle_to_screen(
+    fov: f32,
+    half_screen_width: f32,
+    screen_width: f32,
+    angle: FloatAngle,
+) -> f32 {
     let focal = projection(fov, half_screen_width);
     let t = angle.tan() * focal;
     // The root cause of missing columns is this. It must be tipped a little so that
@@ -60,23 +66,24 @@ pub fn angle_to_screen(fov: f32, half_screen_width: f32, screen_width: f32, angl
 }
 
 /// R_PointToAngle
-pub fn vertex_angle_to_object(vertex: &Vec2, mobj: &MapObject) -> Angle {
-    let x = vertex.x - mobj.xy.x;
-    let y = vertex.y - mobj.xy.y;
-    Angle::new(y.atan2(x))
+pub fn vertex_angle_to_object(vertex: &Vec2, mobj: &MapObject) -> FloatAngle {
+    let x = vertex.x - mobj.xy.x.to_float();
+    let y = vertex.y - mobj.xy.y.to_float();
+    FloatAngle::new(y.atan2(x))
 }
 
 /// R_ScaleFromGlobalAngle
 // All should be in rads
 pub fn scale_from_view_angle(
-    visangle: Angle,
-    rw_normalangle: Angle,
+    visangle: FloatAngle,
+    rw_normalangle: FloatAngle,
     rw_distance: f32,
-    view_angle: Angle,
+    view_angle: FloatAngle,
     screen_width_half: f32,
 ) -> f32 {
-    let anglea: Angle = Angle::new(FRAC_PI_2 + (visangle.sub_other(view_angle)).rad());
-    let angleb: Angle = Angle::new(FRAC_PI_2 + (visangle.sub_other(rw_normalangle)).rad());
+    let anglea: FloatAngle = FloatAngle::new(FRAC_PI_2 + (visangle.sub_other(view_angle)).rad());
+    let angleb: FloatAngle =
+        FloatAngle::new(FRAC_PI_2 + (visangle.sub_other(rw_normalangle)).rad());
     let projection: f32 = screen_width_half;
     let num: f32 = projection * angleb.sin();
     let den: f32 = rw_distance * anglea.sin();

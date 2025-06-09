@@ -1,24 +1,26 @@
 use crate::info::StateNum;
 use crate::{MapObject, Player, PspDef};
+use math::fixed_t;
 use std::fmt;
 
 /// Do not know where this is set
 pub const TICRATE: i32 = 35;
 
 pub const BFGCELLS: u32 = 40;
-pub const MELEERANGE: f32 = 64.0;
-pub const MISSILERANGE: f32 = 32.0 * 64.0;
-pub const SKULLSPEED: f32 = 20.0;
-pub const FLOATSPEED: f32 = 4.0;
+pub const MELEERANGE: fixed_t = fixed_t::from_float(64.0);
+pub const MISSILERANGE: fixed_t = fixed_t::from_float(32.0 * 64.0);
+pub const SKULLSPEED: fixed_t = fixed_t::from_float(20.0);
+pub const FLOATSPEED: fixed_t = fixed_t::from_int(4);
 
 /// P_MOBJ
-pub static ONFLOORZ: i32 = i32::MIN;
+pub static ONFLOORZ: fixed_t = fixed_t::new(i32::MIN);
 /// P_MOBJ
-pub static ONCEILINGZ: i32 = i32::MAX;
+pub static ONCEILINGZ: fixed_t = fixed_t::new(i32::MAX);
 pub static MAXHEALTH: i32 = 100;
-pub static VIEWHEIGHT: f32 = 41.0;
-pub static MAXRADIUS: f32 = 32.0;
-pub const USERANGE: f32 = 64.0;
+pub static VIEWHEIGHT: fixed_t = fixed_t::from_int(41);
+pub static MAXRADIUS: fixed_t = fixed_t::from_float(32.0);
+pub const USERANGE: fixed_t = fixed_t::from_int(64);
+pub const FUZZY_AIM_SHIFT: u32 = 20;
 
 /// DOOM version
 pub static DOOM_VERSION: u8 = 109;

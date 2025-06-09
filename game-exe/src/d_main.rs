@@ -184,7 +184,7 @@ pub fn d_doom_loop(
                     uid,
                     x: mobj.xy.x,
                     y: mobj.xy.y,
-                    angle: mobj.angle.rad(),
+                    angle: mobj.angle.to_float_angle().rad(),
                 })
                 .unwrap();
         }

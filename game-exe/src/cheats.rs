@@ -181,7 +181,7 @@ impl Cheats {
                 debug!("MYPOS",);
                 let player = &mut game.players[game.consoleplayer];
                 if let Some(mobj) = player.mobj() {
-                    println!("MYPOS: X:{} Y:{}", mobj.xy.x as i32, mobj.xy.y as i32);
+                    println!("MYPOS: X:{} Y:{}", mobj.xy.x.to_int(), mobj.xy.y.to_int());
                 }
             }
         }

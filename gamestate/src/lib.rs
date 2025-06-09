@@ -27,7 +27,9 @@ use crate::subsystems::GameSubsystem;
 use gameplay::log::{debug, error, info, trace, warn};
 use gameplay::tic_cmd::{TIC_CMD_BUTTONS, TicCmd};
 use gameplay::{
-    GameAction, GameMission, GameMode, GameOptions, Level, MAXPLAYERS, MapObject, PicData, Player, PlayerState, STATES, Skill, StateNum, m_clear_random, respawn_specials, spawn_specials, update_specials
+    GameAction, GameMission, GameMode, GameOptions, Level, MAXPLAYERS, MapObject, PicData, Player,
+    PlayerState, STATES, Skill, StateNum, m_clear_random, respawn_specials, spawn_specials,
+    update_specials,
 };
 use gamestate_traits::sdl2::AudioSubsystem;
 use gamestate_traits::{GameState, GameTraits, SubsystemTrait, WorldInfo};
@@ -37,6 +39,7 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 use std::vec::IntoIter;
 // use sound_sdl2::SndServerTx;
+use math::FT_ONE;
 use sound_traits::{MusTrack, SoundAction, SoundServer, SoundServerTic};
 use wad::WadData;
 use wad::types::WadPatch;
@@ -595,7 +598,7 @@ impl Game {
         // Player setup from P_SetupLevel
         self.world_info.maxfrags = 0;
         self.world_info.partime = 180;
-        self.players[self.consoleplayer].viewz = 1.0;
+        self.players[self.consoleplayer].viewz = FT_ONE;
         // TODO: remove after new-game-exe stuff done
 
         self.change_music(MusTrack::None);

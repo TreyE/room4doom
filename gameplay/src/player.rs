@@ -16,11 +16,13 @@ use crate::thing::enemy::noise_alert;
 use crate::thing::{BONUSADD, MapObjFlag, MapObject};
 use crate::tic_cmd::{LOOKDIRMAX, LOOKDIRMIN, TIC_CMD_BUTTONS, TicCmd};
 use crate::{GameMode, Skill};
-use math::{Angle, bam_to_radian, fixed_to_float, p_random, point_to_angle_2};
+use math::{
+    ANG5, ANG90, ANG180, Angle, FINEANGLES, FINEMASK, FT_FOUR, FT_ONE, FT_TWO, FT_ZERO, VecF2,
+    bam_to_radian, fixed_t, fixed_to_float, p_random, point_to_angle_2,
+};
 
 /// 16 pixels of bob
-const MAX_BOB: f32 = 16.0; // 0x100000;
-const ANG5: f32 = 0.08726646; //5f32.to_radians();
+const MAX_BOB: fixed_t = fixed_t::from_int(16); // 0x100000;
 
 /// Overlay psprites are scaled shapes
 /// drawn directly on the view screen,
@@ -148,13 +150,13 @@ pub struct Player {
     /// Determine POV,
     ///  including viewpoint bobbing during movement.
     /// Focal origin above r.z
-    pub viewz: f32,
+    pub viewz: fixed_t,
     /// Base height above floor for viewz.
-    pub viewheight: f32,
+    pub viewheight: fixed_t,
     /// Bob/squat speed.
-    pub(crate) deltaviewheight: f32,
+    pub(crate) deltaviewheight: fixed_t,
     /// bounded/scaled total momentum.
-    pub(crate) bob: f32,
+    pub(crate) bob: fixed_t,
     pub(crate) onground: bool,
 
     pub status: PlayerStatus,
@@ -211,13 +213,13 @@ impl Default for Player {
 impl Player {
     pub fn new() -> Player {
         Player {
-            viewz: 0.0,
+            viewz: FT_ZERO,
             mobj: None,
             attacker: None,
 
-            viewheight: 41.0,
-            deltaviewheight: 1.0,
-            bob: 1.0,
+            viewheight: fixed_t::from_int(41),
+            deltaviewheight: FT_ONE,
+            bob: FT_ONE,
             onground: true,
             status: PlayerStatus::default(),
             refire: 0,
@@ -246,13 +248,13 @@ impl Player {
                 PspDef {
                     state: Some(unsafe { &STATES[StateNum::PISTOLUP as usize] }),
                     tics: 1,
-                    sx: 0.0,
+                    sx: FT_ZERO,
                     sy: WEAPONBOTTOM,
                 },
                 PspDef {
                     state: Some(unsafe { &STATES[StateNum::PISTOLFLASH as usize] }),
                     tics: 1,
-                    sx: 0.0,
+                    sx: FT_ZERO,
                     sy: WEAPONBOTTOM,
                 },
             ],
@@ -346,10 +348,10 @@ impl Player {
     /// Moves the given origin along a given angle.
     fn thrust(&mut self, angle: Angle, mv: i32) {
         // mv is in a fixed float format, we need to convert it
-        let mv = fixed_to_float(mv);
+        let mv = fixed_t::new(mv);
         let x = mv * angle.cos();
         let y = mv * angle.sin();
-        let mxy = Vec2::new(x, y);
+        let mxy = VecF2::new(x, y);
         if let Some(mobj) = self.mobj_mut() {
             mobj.momxy += mxy;
         }
@@ -377,21 +379,17 @@ impl Player {
             // TODO: if ((player->cheats & CF_NOMOMENTUM) || !onground)
             if !self.onground {
                 self.viewz = mobj.z + VIEWHEIGHT;
-                if self.viewz > mobj.ceilingz - 4.0 {
-                    self.viewz = mobj.ceilingz - 4.0;
+                if self.viewz > mobj.ceilingz - FT_FOUR {
+                    self.viewz = mobj.ceilingz - FT_FOUR;
                 }
 
                 self.viewz = mobj.z + self.viewheight;
             }
 
-            // Need to shunt finesine left by 13 bits?
-            // Removed the shifts and division from `angle = (FINEANGLES / 20 * leveltime) &
-            // FINEMASK;`
-            let mut bob = 0.0;
+            let mut bob = FT_ZERO;
             if self.head_bob {
-                let angle = (level_time as f32 / 3.0).sin(); // Controls frequency (3.0 seems ideal)
-                bob = self.bob / 3.0 * angle; // Controls depth of bob (2.0 is
-                // original)
+                let angle = Angle::new((FINEANGLES / 20 * level_time) & FINEMASK);
+                bob = self.bob / FT_TWO * angle.sin();
             }
 
             // move viewheight
@@ -400,28 +398,28 @@ impl Player {
 
                 if self.viewheight > VIEWHEIGHT {
                     self.viewheight = VIEWHEIGHT;
-                    self.deltaviewheight = 0.0;
+                    self.deltaviewheight = FT_ZERO;
                 }
 
-                if self.viewheight < VIEWHEIGHT / 2.0 {
-                    self.viewheight = VIEWHEIGHT / 2.0;
-                    if self.deltaviewheight <= 0.0 {
-                        self.deltaviewheight = 1.0;
+                if self.viewheight < VIEWHEIGHT / FT_TWO {
+                    self.viewheight = VIEWHEIGHT / FT_TWO;
+                    if self.deltaviewheight <= FT_ZERO {
+                        self.deltaviewheight = FT_ONE;
                     }
                 }
 
-                if self.deltaviewheight > 0.0 {
-                    self.deltaviewheight += 0.25;
-                    if self.deltaviewheight <= 0.0 {
-                        self.deltaviewheight = 1.0;
+                if self.deltaviewheight > FT_ZERO {
+                    self.deltaviewheight += fixed_t::from_float(0.25);
+                    if self.deltaviewheight <= FT_ZERO {
+                        self.deltaviewheight = FT_ONE;
                     }
                 }
             }
 
             self.viewz = mobj.z + self.viewheight + bob;
 
-            if self.viewz > mobj.ceilingz - 4.0 {
-                self.viewz = mobj.ceilingz - 4.0;
+            if self.viewz > mobj.ceilingz - FT_FOUR {
+                self.viewz = mobj.ceilingz - FT_FOUR;
             }
         }
     }
@@ -433,7 +431,7 @@ impl Player {
 
             // TODO: Fix adjustments after fixing the tic timestep
             if self.cmd.angleturn != 0 {
-                let a = bam_to_radian((self.cmd.angleturn as u32) << 16);
+                let a = Angle::new((self.cmd.angleturn as u32) << 16);
                 mobj.angle += a;
             }
 
@@ -446,7 +444,7 @@ impl Player {
 
             if self.cmd.sidemove != 0 && self.onground {
                 let angle = mobj.angle;
-                self.thrust(angle - FRAC_PI_2, self.cmd.sidemove as i32 * 2048);
+                self.thrust(angle - Angle::new(ANG90), self.cmd.sidemove as i32 * 2048);
             }
 
             if (self.cmd.forwardmove != 0 || self.cmd.sidemove != 0)
@@ -494,8 +492,8 @@ impl Player {
             self.psprites[position].tics = state.tics;
 
             if state.misc1 != 0 {
-                self.psprites[position].sx = fixed_to_float(state.misc1);
-                self.psprites[position].sy = fixed_to_float(state.misc2);
+                self.psprites[position].sx = fixed_t::new(state.misc1);
+                self.psprites[position].sy = fixed_t::new(state.misc2);
             }
 
             if let ActFn::P(func) = state.action {
@@ -1010,10 +1008,10 @@ impl Player {
 
         if let Some(mobj) = self.mobj {
             let mobj = unsafe { &mut *mobj };
-            if self.viewheight >= 6.0 {
-                self.viewheight -= 1.0;
+            if self.viewheight >= fixed_t::from_int(6) {
+                self.viewheight -= FT_ONE;
             }
-            if self.viewheight == 6.0 {
+            if self.viewheight == fixed_t::from_int(6) {
                 info!("You died! Press use-button to respawn");
             }
 
@@ -1024,17 +1022,17 @@ impl Player {
                 let attacker = unsafe { &mut *attacker };
                 if !std::ptr::eq(mobj, attacker) {
                     let angle = point_to_angle_2(attacker.xy, mobj.xy);
-                    let delta = mobj.angle.unit().angle_to(angle.unit());
+                    let delta = angle - mobj.angle;
 
-                    if delta.abs() <= ANG5 {
+                    if (delta.0 < ANG5 || delta.0 > u32::MAX - ANG5) {
                         mobj.angle = angle;
                         if self.status.damagecount > 0 {
                             self.status.damagecount -= 1;
                         }
-                    } else if delta > -ANG5 {
-                        mobj.angle += ANG5;
+                    } else if delta.0 < ANG180 {
+                        mobj.angle += Angle::new(ANG5);
                     } else {
-                        mobj.angle -= ANG5;
+                        mobj.angle -= Angle::new(ANG5);
                     }
                 }
             } else if self.status.damagecount > 0 {

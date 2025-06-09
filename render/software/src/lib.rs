@@ -2,7 +2,7 @@
 
 use self::defs::DrawSeg;
 use defs::{MAXDRAWSEGS, PortalClip};
-use gameplay::Angle;
+use math::FloatAngle;
 
 mod bsp;
 mod defs;
@@ -25,7 +25,7 @@ pub use bsp::SoftwareRenderer;
 ///   the array when finished
 /// - R_DrawPlanes, r_plane.c, checks only for overflow of drawsegs
 pub(crate) struct RenderData {
-    pub rw_angle1: Angle,
+    pub rw_angle1: FloatAngle,
     // DrawSeg used, which is inserted in drawsegs at end of r_segs
     pub drawsegs: Vec<DrawSeg>,
     pub portal_clip: PortalClip,
@@ -37,7 +37,7 @@ pub(crate) struct RenderData {
 impl RenderData {
     pub(crate) fn new(screen_width: usize, screen_height: usize) -> Self {
         Self {
-            rw_angle1: Angle::default(),
+            rw_angle1: FloatAngle::default(),
             drawsegs: Vec::with_capacity(MAXDRAWSEGS),
             ds_p: 0,
             portal_clip: PortalClip::new(screen_width, screen_height),
@@ -48,7 +48,7 @@ impl RenderData {
         self.portal_clip.clear();
         self.drawsegs.clear();
         self.ds_p = 0;
-        self.rw_angle1 = Angle::default();
+        self.rw_angle1 = FloatAngle::default();
     }
 }
 

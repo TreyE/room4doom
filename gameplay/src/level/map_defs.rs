@@ -1,9 +1,9 @@
 use crate::MapPtr;
 use crate::thing::MapObject;
 use crate::thinker::{Thinker, ThinkerData};
-use glam::Vec2;
 use log::error;
-use math::Angle;
+use math::{Angle, FT_ZERO};
+use math::{VecF2, fixed_t};
 
 #[derive(Debug)]
 pub enum SlopeType {
@@ -19,8 +19,8 @@ pub enum SlopeType {
 pub struct Sector {
     /// An incremented "ID" of sorts.
     pub num: i32,
-    pub floorheight: f32,
-    pub ceilingheight: f32,
+    pub floorheight: fixed_t,
+    pub ceilingheight: fixed_t,
     /// Is a tag or index to patch
     pub floorpic: usize,
     /// Is a tag or index to patch
@@ -33,7 +33,7 @@ pub struct Sector {
     pub soundtraversed: i32,
 
     /// origin for any sounds played by the sector
-    pub sound_origin: Vec2,
+    pub sound_origin: VecF2,
 
     // if == validcount, already checked
     pub validcount: usize,
@@ -65,8 +65,8 @@ impl Sector {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         num: u32,
-        floorheight: f32,
-        ceilingheight: f32,
+        floorheight: fixed_t,
+        ceilingheight: fixed_t,
         floorpic: usize,
         ceilingpic: usize,
         lightlevel: usize,
@@ -227,10 +227,10 @@ impl Sector {
 #[derive(Debug)]
 pub struct SideDef {
     // add this to the calculated texture column
-    pub textureoffset: f32,
+    pub textureoffset: fixed_t,
 
     // add this to the calculated texture top
-    pub rowoffset: f32,
+    pub rowoffset: fixed_t,
 
     // TODO: link to textures by pointer?
     pub toptexture: Option<usize>,
@@ -243,14 +243,14 @@ pub struct SideDef {
 
 #[derive(Debug, Default)]
 pub struct BBox {
-    pub top: f32,
-    pub bottom: f32,
-    pub left: f32,
-    pub right: f32,
+    pub top: fixed_t,
+    pub bottom: fixed_t,
+    pub left: fixed_t,
+    pub right: fixed_t,
 }
 
 impl BBox {
-    pub fn new(v1: Vec2, v2: Vec2) -> Self {
+    pub fn new(v1: VecF2, v2: VecF2) -> Self {
         let mut bbox = BBox::default();
 
         if v1.x < v2.x {
@@ -275,10 +275,10 @@ impl BBox {
 
 pub struct LineDef {
     // Vertices, from v1 to v2.
-    pub v1: Vec2,
-    pub v2: Vec2,
+    pub v1: VecF2,
+    pub v2: VecF2,
     // Precalculated v2 - v1 for side checking.
-    pub delta: Vec2,
+    pub delta: VecF2,
     // Animation related.
     pub flags: u32,
     pub special: i16,
@@ -329,12 +329,12 @@ impl std::fmt::Debug for LineDef {
 
 impl LineDef {
     /// True if the right side of the segment faces the point
-    pub fn is_facing_point(&self, point: &Vec2) -> bool {
+    pub fn is_facing_point(&self, point: &VecF2) -> bool {
         let start = &self.v1;
         let end = &self.v2;
 
         let d = (end.y - start.y) * (start.x - point.x) - (end.x - start.x) * (start.y - point.y);
-        if d >= 0.0 {
+        if d >= FT_ZERO {
             return false;
         }
         true
@@ -342,7 +342,7 @@ impl LineDef {
 
     /// Determine which side of XY/XY a point is on. Ignores Z
     #[inline]
-    pub fn point_on_side(&self, v: Vec2) -> usize {
+    pub fn point_on_side(&self, v: VecF2) -> usize {
         // let r = (self.v2.x - self.v1.x)*(v.y - self.v1.y) - (self.v2.y -
         // self.v1.y)*(v.x - self.v1.x); // dbg!(r);
         // if r.is_sign_positive() {
@@ -365,12 +365,12 @@ impl LineDef {
 #[derive(Debug, Clone)]
 pub struct Segment {
     // Vertices, from v1 to v2.
-    pub v1: Vec2,
-    pub v2: Vec2,
+    pub v1: VecF2,
+    pub v2: VecF2,
 
     /// Offset distance along the linedef (from `start_vertex`) to the start
     /// of this `Segment`
-    pub offset: f32,
+    pub offset: fixed_t,
     pub angle: Angle,
 
     pub sidedef: MapPtr<SideDef>,
@@ -388,7 +388,9 @@ impl Segment {
         // 12 top-left (256.0, -1392.0)
         // 4176 top-right (272.0, -1392.0)
         // 4143 bottom-right (272.0, -1408.0)
-        if self.v2 == Vec2::new(256., -1392.) && self.v1 == Vec2::new(272., -1392.) {
+        if self.v2 == VecF2::new(fixed_t::from_int(256), fixed_t::from_int(-1392))
+            && self.v1 == VecF2::new(fixed_t::from_int(272), fixed_t::from_int(1392))
+        {
             dbg!(self.sidedef.bottomtexture);
             dbg!(&self.linedef.front_sidedef);
             dbg!(&self.linedef.back_sidedef);
@@ -402,7 +404,7 @@ impl Segment {
 
     /// Helper to recalcuate the offset of a seg along the linedef line it is
     /// derived from. Required for ZDBSP style nodes.
-    pub fn recalc_offset(v1: Vec2, v2: Vec2) -> f32 {
+    pub fn recalc_offset(v1: VecF2, v2: VecF2) -> fixed_t {
         let a = v1.x - v2.x;
         let b = v1.y - v2.y;
         (a * a + b * b).sqrt()
@@ -410,19 +412,19 @@ impl Segment {
 
     /// True if the right side of the segment faces the point
     #[inline]
-    pub fn is_facing_point(&self, point: &Vec2) -> bool {
+    pub fn is_facing_point(&self, point: &VecF2) -> bool {
         let start = &self.v1;
         let end = &self.v2;
 
         let d = (end.y - start.y) * (start.x - point.x) - (end.x - start.x) * (start.y - point.y);
-        if d <= 0.1 {
+        if d <= fixed_t::from_float(0.1) {
             return true;
         }
         false
     }
 
     #[inline]
-    pub fn point_on_side(&self, v: Vec2) -> usize {
+    pub fn point_on_side(&self, v: VecF2) -> usize {
         // let r = (self.v2.x - self.v1.x)*(v.y - self.v1.y) - (self.v2.y -
         // self.v1.y)*(v.x - self.v1.x); // dbg!(r);
         // if r.is_sign_positive() {
@@ -455,15 +457,15 @@ pub struct SubSector {
 #[derive(Debug, PartialEq)]
 pub struct Node {
     /// Where the line used for splitting the level starts
-    pub xy: Vec2,
+    pub xy: VecF2,
     /// Where the line used for splitting the level ends
-    pub delta: Vec2,
+    pub delta: VecF2,
     /// Coordinates of the bounding boxes:
     /// - [0][0] == right box, top-left
     /// - [0][1] == right box, bottom-right
     /// - [1][0] == left box, top-left
     /// - [1][1] == left box, bottom-right
-    pub bboxes: [[Vec2; 2]; 2],
+    pub bboxes: [[VecF2; 2]; 2],
     /// The node children. Doom uses a clever trick where if one node is
     /// selected then the other can also be checked with the same/minimal
     /// code by inverting the last bit.
@@ -473,8 +475,8 @@ pub struct Node {
 
 #[derive(Default)]
 pub struct Blockmap {
-    pub x_origin: f32,
-    pub y_origin: f32,
+    pub x_origin: fixed_t,
+    pub y_origin: fixed_t,
     pub columns: usize,
     pub rows: usize,
     pub lines: Vec<MapPtr<LineDef>>,

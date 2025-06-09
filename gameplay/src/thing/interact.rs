@@ -2,7 +2,6 @@
 
 use std::ptr;
 
-use glam::Vec2;
 use log::{debug, error, info};
 use sound_traits::SfxName;
 
@@ -12,7 +11,7 @@ use crate::lang::english::*;
 use crate::player::{PlayerCheat, PlayerState};
 use crate::thing::MapObjFlag;
 use crate::{MapObject, Skill};
-use math::{p_random, point_to_angle_2};
+use math::{FT_FOUR, FT_ZERO, VecF2, fixed_t, p_random, point_to_angle_2};
 
 pub const BONUSADD: i32 = 6;
 
@@ -54,8 +53,8 @@ impl MapObject {
         }
 
         if self.flags & MapObjFlag::Skullfly as u32 != 0 {
-            self.momxy = Vec2::default();
-            self.momz = 0.0;
+            self.momxy = VecF2::default();
+            self.momz = FT_ZERO;
             // extra flag setting here because sometimes float errors stuff it up
             self.flags &= !(MapObjFlag::Skullfly as u32);
             self.set_state(self.info.spawnstate);
@@ -90,14 +89,14 @@ impl MapObject {
 
             if self.flags & MapObjFlag::Noclip as u32 == 0 && do_push {
                 let angle = point_to_angle_2(self.xy, inflict.xy);
-                let mut thrust = damage as f32 * 16.66 / self.info.mass as f32;
+                let mut thrust = fixed_t::from_float(damage as f32 * 16.66 / self.info.mass as f32);
                 // make fall forwards sometimes
                 if damage < 40
                     && damage > self.health
-                    && self.z - inflict.z > 64.0
+                    && self.z - inflict.z > fixed_t::from_int(64)
                     && p_random() & 1 != 0
                 {
-                    thrust *= 4.0;
+                    thrust *= FT_FOUR;
                 }
 
                 self.momxy += angle.unit() * thrust;
@@ -200,7 +199,7 @@ impl MapObject {
         }
 
         self.flags |= MapObjFlag::Corpse as u32 | MapObjFlag::Dropoff as u32;
-        self.height /= 4.0;
+        self.height /= FT_FOUR;
 
         if let Some(source) = source.as_mut() {
             if let Some(player) = source.player_mut() {
@@ -260,7 +259,7 @@ impl MapObject {
             let mobj = MapObject::spawn_map_object(
                 self.xy.x,
                 self.xy.y,
-                self.floorz as i32,
+                self.floorz,
                 item,
                 &mut *self.level,
             );
@@ -274,7 +273,7 @@ impl MapObject {
     pub(crate) fn touch_special(&mut self, special: &mut MapObject) {
         let delta = special.z - self.z;
 
-        if delta > self.height || delta < -8.0 {
+        if delta > self.height || delta < fixed_t::from_int(-8) {
             // Can't reach it. Because map is essentially 2D we need to check Z
             return;
         }

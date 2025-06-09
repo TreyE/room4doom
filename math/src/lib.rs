@@ -1,12 +1,28 @@
 mod angle;
+
+pub use angle::{ANG5, ANG45, ANG90, ANG180, ANG270, Angle, FINEANGLES, FINEMASK};
+
 mod intercept;
 mod trig;
 
 use std::f32::consts::PI;
 
-pub use angle::*;
-use glam::Vec2;
+// pub use angle::*;
 pub use intercept::*;
+
+mod fixed;
+
+pub use fixed::{
+    FT_EIGHT, FT_FOUR, FT_FOURTH, FT_MAX, FT_ONE, FT_SIXTEEN, FT_TWO, FT_ZERO, fixed_t,
+};
+
+mod vec_f2;
+
+pub use vec_f2::VecF2;
+
+mod float_angle;
+
+pub use float_angle::FloatAngle;
 
 const FRACBITS: i32 = 16;
 const FRACUNIT: f32 = (1 << FRACBITS) as f32;
@@ -86,7 +102,12 @@ pub const fn p_subrandom() -> i32 {
 
 /// True if the line segment from point1 to point2 penetrates the circle
 #[inline]
-pub fn circle_seg_collide(c_origin: Vec2, c_radius: f32, s_start: Vec2, s_end: Vec2) -> bool {
+pub fn circle_seg_collide(
+    c_origin: VecF2,
+    c_radius: fixed_t,
+    s_start: VecF2,
+    s_end: VecF2,
+) -> bool {
     let lc = c_origin - s_start;
     let d = s_end - s_start;
     let p = project_vec2d(lc, d);
@@ -94,7 +115,7 @@ pub fn circle_seg_collide(c_origin: Vec2, c_radius: f32, s_start: Vec2, s_end: V
 
     if circle_point_intersect(c_origin, c_radius, nearest)
         && p.length() < d.length()
-        && p.dot(d) > f32::EPSILON
+        && p.dot(d) > fixed_t::new(0)
     {
         // return Some((nearest - c_origin).normalize() * dist);
         return true;
@@ -103,7 +124,12 @@ pub fn circle_seg_collide(c_origin: Vec2, c_radius: f32, s_start: Vec2, s_end: V
 }
 
 #[inline]
-pub fn circle_line_collide(c_origin: Vec2, c_radius: f32, l_start: Vec2, l_end: Vec2) -> bool {
+pub fn circle_line_collide(
+    c_origin: VecF2,
+    c_radius: fixed_t,
+    l_start: VecF2,
+    l_end: VecF2,
+) -> bool {
     let lc = c_origin - l_start;
     let p = project_vec2d(lc, l_end - l_start);
     let nearest = l_start + p;
@@ -114,9 +140,9 @@ pub fn circle_line_collide(c_origin: Vec2, c_radius: f32, l_start: Vec2, l_end: 
 /// Do a 2d XY projection. Zeroes out the Z component in the `Vec2` copy
 /// internally.
 #[inline]
-fn project_vec2d(this: Vec2, onto: Vec2) -> Vec2 {
+fn project_vec2d(this: VecF2, onto: VecF2) -> VecF2 {
     let d = onto.dot(onto);
-    if d > 0.0 {
+    if d > fixed_t::new(0) {
         let dp = this.dot(onto);
         return onto * (dp / d);
     }
@@ -126,7 +152,7 @@ fn project_vec2d(this: Vec2, onto: Vec2) -> Vec2 {
 /// Do a 2d XY intersection. Zeroes out the Z component in the `Vec2` copy
 /// internally.
 #[inline]
-pub fn circle_point_intersect(origin: Vec2, radius: f32, point: Vec2) -> bool {
+pub fn circle_point_intersect(origin: VecF2, radius: fixed_t, point: VecF2) -> bool {
     let dist = point - origin;
     let len = dist.length();
     if len < radius {
@@ -137,10 +163,10 @@ pub fn circle_point_intersect(origin: Vec2, radius: f32, point: Vec2) -> bool {
 
 #[inline]
 pub fn circle_circle_intersect(
-    origin: Vec2,
-    origin_radius: f32,
-    point: Vec2,
-    point_radius: f32,
+    origin: VecF2,
+    origin_radius: fixed_t,
+    point: VecF2,
+    point_radius: fixed_t,
 ) -> bool {
     let dist = point - origin;
     let len = dist.length();
@@ -227,4 +253,10 @@ mod tests {
         assert_eq!(bam_to_radian(ang180), PI);
         assert_eq!(bam_to_radian(one).to_degrees(), 5.625);
     }
+}
+
+pub fn point_to_angle_2(point1: VecF2, point2: VecF2) -> Angle {
+    let x = point1.x - point2.x;
+    let y = point1.y - point2.y;
+    y.atan2(x)
 }

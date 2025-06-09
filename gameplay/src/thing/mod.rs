@@ -16,7 +16,7 @@ use std::ptr::null_mut;
 
 use self::movement::SubSectorMinMax;
 
-use crate::doom_def::{MELEERANGE, MISSILERANGE, MTF_SINGLE_PLAYER};
+use crate::doom_def::{FUZZY_AIM_SHIFT, MELEERANGE, MISSILERANGE, MTF_SINGLE_PLAYER};
 use crate::level::Level;
 use crate::thinker::{Think, Thinker, ThinkerData};
 use crate::{MapPtr, Skill};
@@ -29,7 +29,9 @@ use crate::info::{MOBJINFO, MapObjInfo, MapObjKind, STATES, SpriteNum, State, St
 use crate::level::map_defs::SubSector;
 use crate::player::{Player, PlayerState};
 use crate::utilities::BestSlide;
-use math::{Angle, p_random, p_subrandom, point_to_angle_2};
+use math::{
+    Angle, FT_ONE, FT_TWO, FT_ZERO, VecF2, fixed_t, p_random, p_subrandom, point_to_angle_2,
+};
 
 //static MOBJ_CYCLE_LIMIT: u32 = 1000000;
 #[derive(Debug, PartialEq)]
@@ -118,8 +120,8 @@ pub struct MapObject {
     /// Specific to Doom II. The current target (spawn point for demons)
     pub(super) boss_target_on: usize,
     /// Info for drawing: position.
-    pub xy: Vec2,
-    pub z: f32,
+    pub xy: VecF2,
+    pub z: fixed_t,
     // More drawing info: to determine current sprite.
     /// orientation
     pub angle: Angle,
@@ -139,14 +141,14 @@ pub struct MapObject {
     /// subsector, making this safe in 99% of cases.
     pub subsector: MapPtr<SubSector>,
     /// The closest interval over all contacted Sectors.
-    pub(crate) floorz: f32,
-    pub(crate) ceilingz: f32,
+    pub(crate) floorz: fixed_t,
+    pub(crate) ceilingz: fixed_t,
     /// For movement checking.
-    pub(crate) radius: f32,
-    pub(crate) height: f32,
+    pub(crate) radius: fixed_t,
+    pub(crate) height: fixed_t,
     /// Momentum, used to update position.
-    pub(crate) momxy: Vec2,
-    pub(crate) momz: f32,
+    pub(crate) momxy: VecF2,
+    pub(crate) momz: fixed_t,
     /// If == validcount, already checked.
     pub(crate) valid_count: usize,
     /// The type of object
@@ -223,9 +225,9 @@ impl Debug for MapObject {
 impl MapObject {
     #[allow(clippy::too_many_arguments)]
     fn new(
-        x: f32,
-        y: f32,
-        z: i32,
+        x: fixed_t,
+        y: fixed_t,
+        z: fixed_t,
         reactiontime: i32,
         kind: MapObjKind,
         info: MapObjInfo,
@@ -237,17 +239,17 @@ impl MapObject {
             boss_targets: Vec::new(),
             boss_target_on: 0,
             player: None,
-            xy: Vec2::new(x, y),
-            z: z as f32,
-            angle: Angle::new(0.0),
+            xy: VecF2::new(x, y),
+            z,
+            angle: Angle::new(0),
             sprite: state.sprite,
             frame: state.frame,
-            floorz: 0.0,
-            ceilingz: 0.0,
+            floorz: FT_ZERO,
+            ceilingz: FT_ZERO,
             radius: info.radius,
             height: info.height,
-            momxy: Vec2::default(),
-            momz: 0.0,
+            momxy: VecF2::default(),
+            momz: FT_ZERO,
             valid_count: 0,
             flags: info.flags,
             health: info.spawnhealth,
@@ -360,8 +362,8 @@ impl MapObject {
         // Doom spawns this in it's memory manager then passes a pointer back. As fasr
         // as I can see the Player object owns this.
         let mobj = MapObject::spawn_map_object(
-            mthing.x as f32,
-            mthing.y as f32,
+            fixed_t::from_i16(mthing.x),
+            fixed_t::from_i16(mthing.y),
             ONFLOORZ,
             MapObjKind::MT_PLAYER,
             level,
@@ -375,7 +377,7 @@ impl MapObject {
         }
 
         // TODO: check this angle stuff
-        mobj_ptr_mut.angle = Angle::new((mthing.angle as f32).to_radians());
+        mobj_ptr_mut.angle = Angle::from_i16(mthing.angle);
         mobj_ptr_mut.health = player.status.health;
         mobj_ptr_mut.player = Some(player);
 
@@ -482,8 +484,8 @@ impl MapObject {
             return;
         }
 
-        let x = mthing.x as f32;
-        let y = mthing.y as f32;
+        let x = fixed_t::from_i16(mthing.x);
+        let y = fixed_t::from_i16(mthing.y);
         let z = if MOBJINFO[i as usize].flags & MapObjFlag::Spawnceiling as u32 != 0 {
             ONCEILINGZ
         } else {
@@ -503,7 +505,7 @@ impl MapObject {
         }
 
         // TODO: check the angle is correct
-        mobj.angle = Angle::new((mthing.angle as f32).to_radians());
+        mobj.angle = Angle::from_i16(mthing.angle); // Angle::new((mthing.angle as f32).to_radians());
         if mthing.flags & MTF_AMBUSH != 0 {
             mobj.flags |= MapObjFlag::Ambush as u32;
         }
@@ -513,10 +515,16 @@ impl MapObject {
 
     /// A thinker for metal spark/puff, typically used for gun-strikes against
     /// walls or non-fleshy things.
-    pub(crate) fn spawn_puff(x: f32, y: f32, z: i32, attack_range: f32, level: &mut Level) {
+    pub(crate) fn spawn_puff(
+        x: fixed_t,
+        y: fixed_t,
+        z: fixed_t,
+        attack_range: fixed_t,
+        level: &mut Level,
+    ) {
         let mobj = MapObject::spawn_map_object(x, y, z, MapObjKind::MT_PUFF, level);
         let mobj = unsafe { &mut *mobj };
-        mobj.momz = 1.0;
+        mobj.momz = fixed_t::from_int(1);
         mobj.tics -= p_random() & 3;
 
         if mobj.tics < 1 {
@@ -529,20 +537,26 @@ impl MapObject {
     }
 
     /// Blood! In a game-exe!
-    pub(crate) fn spawn_blood(x: f32, y: f32, mut z: i32, damage: f32, level: &mut Level) {
-        z += (p_random() - p_random()) / 64;
+    pub(crate) fn spawn_blood(
+        x: fixed_t,
+        y: fixed_t,
+        mut z: fixed_t,
+        damage: i32,
+        level: &mut Level,
+    ) {
+        z += fixed_t::from_int((p_random() - p_random()) / 64);
         let mobj = MapObject::spawn_map_object(x, y, z, MapObjKind::MT_BLOOD, level);
         let mobj = unsafe { &mut *mobj };
-        mobj.momz = 2.0;
+        mobj.momz = fixed_t::from_int(2);
         mobj.tics -= p_random() & 3;
 
         if mobj.tics < 1 {
             mobj.tics = 1;
         }
 
-        if (9.0..=12.0).contains(&damage) {
+        if damage <= 12 && damage >= 9 {
             mobj.set_state(StateNum::BLOOD2);
-        } else if damage < 9.0 {
+        } else if damage < 9 {
             mobj.set_state(StateNum::BLOOD3);
         }
     }
@@ -557,9 +571,9 @@ impl MapObject {
     ) {
         let x = source.xy.x;
         let y = source.xy.y;
-        let z = source.z + 32.0;
+        let z = source.z + fixed_t::from_int(32);
 
-        let mobj = MapObject::spawn_map_object(x, y, z as i32, kind, level);
+        let mobj = MapObject::spawn_map_object(x, y, z, kind, level);
         let mobj = unsafe { &mut *mobj };
         mobj.angle = source.angle;
 
@@ -567,10 +581,10 @@ impl MapObject {
         let mut slope = mobj.aim_line_attack(MISSILERANGE, &mut bsp_trace);
 
         if slope.is_none() {
-            mobj.angle += 5.625f32.to_radians();
+            mobj.angle += Angle::new(1 << 26 as u32);
             slope = mobj.aim_line_attack(MISSILERANGE, &mut bsp_trace);
             if slope.is_none() {
-                mobj.angle -= 11.25f32.to_radians();
+                mobj.angle -= Angle::new(2 << 26 as u32);
                 slope = mobj.aim_line_attack(MISSILERANGE, &mut bsp_trace);
             }
             if slope.is_none() {
@@ -584,7 +598,9 @@ impl MapObject {
 
         mobj.target = Some(source.thinker);
         mobj.momxy = mobj.angle.unit() * mobj.info.speed;
-        mobj.momz = slope.map(|s| s.aimslope * mobj.info.speed).unwrap_or(0.0);
+        mobj.momz = slope
+            .map(|s| s.aimslope * mobj.info.speed)
+            .unwrap_or(FT_ZERO);
         mobj.check_missile_spawn();
     }
 
@@ -599,9 +615,9 @@ impl MapObject {
     ) -> &'a mut Self {
         let x = source.xy.x;
         let y = source.xy.y;
-        let z = source.z + 32.0;
+        let z = source.z + fixed_t::from_int(32);
 
-        let mobj = MapObject::spawn_map_object(x, y, z as i32, kind, level);
+        let mobj = MapObject::spawn_map_object(x, y, z, kind, level);
         let mobj = unsafe { &mut *mobj };
 
         if !matches!(mobj.info.seesound, SfxName::None | SfxName::NumSfx) {
@@ -611,15 +627,15 @@ impl MapObject {
         mobj.angle = point_to_angle_2(target.xy, source.xy);
         // fuzzy player
         if target.flags & MapObjFlag::Shadow as u32 != 0 {
-            mobj.angle += (((p_random() - p_random()) >> 4) as f32).to_radians();
+            mobj.angle += Angle::from_int((p_random() - p_random()) >> FUZZY_AIM_SHIFT);
         }
 
         mobj.target = Some(source.thinker);
         mobj.momxy = mobj.angle.unit() * mobj.info.speed;
         //thing.momz = slope.map(|s| s.aimslope * thing.info.speed).unwrap_or(0.0);
         let mut dist = mobj.xy.distance(target.xy) / mobj.info.speed;
-        if dist < 1.0 {
-            dist = 1.0;
+        if dist < FT_ONE {
+            dist = FT_ONE;
         }
         mobj.momz = (target.z - source.z) / dist;
 
@@ -634,8 +650,8 @@ impl MapObject {
             self.tics = 1;
         }
 
-        self.xy += self.momxy / 2.0;
-        self.z += self.momz / 2.0;
+        self.xy += self.momxy / FT_TWO;
+        self.z += self.momz / FT_TWO;
 
         if !self.p_try_move(self.xy.x, self.xy.y, &mut SubSectorMinMax::default()) {
             self.p_explode_missile();
@@ -651,9 +667,9 @@ impl MapObject {
     /// The Z position is used to determine if the object should spawn on the
     /// floor or ceiling
     pub(crate) fn spawn_map_object(
-        x: f32,
-        y: f32,
-        z: i32,
+        x: fixed_t,
+        y: fixed_t,
+        z: fixed_t,
         kind: MapObjKind,
         level: &mut Level,
     ) -> *mut MapObject {
@@ -824,8 +840,8 @@ impl MapObject {
 
         if self.health <= 0 {
             self.set_state(StateNum::GIBS);
-            self.height = 0.0;
-            self.radius = 0.0;
+            self.height = FT_ZERO;
+            self.radius = FT_ZERO;
             return true;
         }
 
@@ -850,13 +866,13 @@ impl MapObject {
             let mobj = MapObject::spawn_map_object(
                 self.xy.x,
                 self.xy.y,
-                (self.z + self.height) as i32 / 2,
+                (self.z + self.height) / fixed_t::from_int(2),
                 MapObjKind::MT_BLOOD,
                 unsafe { &mut *self.level },
             );
             unsafe {
-                (*mobj).momxy.x = p_subrandom() as f32 * 0.6; // P_SubRandom() << 12;
-                (*mobj).momxy.y = p_subrandom() as f32 * 0.6;
+                (*mobj).momxy.x = fixed_t::from_int(p_subrandom()) * fixed_t::from_float(0.6); // P_SubRandom() << 12;
+                (*mobj).momxy.y = fixed_t::from_int(p_subrandom()) * fixed_t::from_float(0.6);
             }
         }
 
@@ -876,19 +892,21 @@ impl MapObject {
 
     /// P_NightmareRespawn
     pub fn nightmare_respawn(&mut self) {
-        let xy = Vec2::new(self.spawnpoint.x as f32, self.spawnpoint.y as f32);
+        let xy = VecF2::new(
+            fixed_t::from_i16(self.spawnpoint.x),
+            fixed_t::from_i16(self.spawnpoint.y),
+        );
         let mut ctrl = SubSectorMinMax::default();
         if !self.p_check_position(xy, &mut ctrl) {
             return;
         }
 
         let ss = self.level_mut().map_data.point_in_subsector(xy);
-        let floor = ss.sector.floorheight as i32;
         let fog = unsafe {
             &mut *MapObject::spawn_map_object(
                 xy.x,
                 xy.y,
-                floor,
+                ss.sector.floorheight,
                 MapObjKind::MT_TFOG,
                 self.level_mut(),
             )
@@ -906,7 +924,7 @@ impl MapObject {
         let thing = unsafe {
             &mut *MapObject::spawn_map_object(xy.x, xy.y, z, self.kind, self.level_mut())
         };
-        thing.angle = Angle::new((mthing.angle as f32).to_radians());
+        thing.angle = Angle::from_i16(mthing.angle);
         thing.spawnpoint = mthing;
         thing.reactiontime = 18;
         if mthing.flags & MTF_AMBUSH != 0 {
@@ -926,7 +944,7 @@ impl Think for MapObject {
             std::panic!("MapObject thinker was null");
         }
 
-        if this.momxy.x != 0.0 || this.momxy.y != 0.0 || MapObjFlag::Skullfly as u32 != 0 {
+        if this.momxy.x != FT_ZERO || this.momxy.y != FT_ZERO || MapObjFlag::Skullfly as u32 != 0 {
             this.p_xy_movement();
 
             if this.thinker_mut().should_remove() {
@@ -934,7 +952,7 @@ impl Think for MapObject {
             }
         }
 
-        if (this.z - this.floorz).abs() > f32::EPSILON || this.momz != 0.0 {
+        if (this.z - this.floorz).abs() > FT_ZERO || this.momz != FT_ZERO {
             this.p_z_movement();
         }
 
