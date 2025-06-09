@@ -44,7 +44,7 @@ impl Angle {
     }
 
     pub const fn from_i16(v: i16) -> Self {
-        Self::new(((v as i32) << FRACBITS) as u32)
+        Self::new(ANG45 * (v / 45) as u32)
     }
 
     pub const fn new(v: u32) -> Self {
