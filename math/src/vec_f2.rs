@@ -58,33 +58,41 @@ pub(crate) fn R_PointToAngleSlope(x1: fixed_t, y1: fixed_t, x: fixed_t, y: fixed
                 return Angle::new(tantoangle[SlopeDiv(yt.0 as u32, xt.0 as u32) as usize]);
             } else {
                 return Angle::new(
-                    ANG90 - 1 - tantoangle[SlopeDiv(xt.0 as u32, yt.0 as u32) as usize],
+                    (ANG90 - 1)
+                        .wrapping_sub(tantoangle[SlopeDiv(xt.0 as u32, yt.0 as u32) as usize]),
                 );
             }
         } else {
             yt = -yt;
             if (xt > yt) {
                 return Angle::new(
-                    u32::MAX - tantoangle[SlopeDiv(y.0 as u32, x.0 as u32) as usize],
+                    u32::MAX - tantoangle[SlopeDiv(yt.0 as u32, xt.0 as u32) as usize],
                 );
             } else {
-                return Angle::new(ANG270 + tantoangle[SlopeDiv(x.0 as u32, y.0 as u32) as usize]);
+                return Angle::new(
+                    ANG270 + tantoangle[SlopeDiv(xt.0 as u32, yt.0 as u32) as usize],
+                );
             }
         }
     } else {
         xt = -xt;
         if (yt >= FT_ZERO) {
             if (xt > yt) {
+                return Angle::new(
+                    ANG180 - 1 - tantoangle[SlopeDiv(yt.0 as u32, xt.0 as u32) as usize],
+                );
             } else {
-                return Angle::new(ANG90 + tantoangle[SlopeDiv(x.0 as u32, y.0 as u32) as usize]);
+                return Angle::new(ANG90 + tantoangle[SlopeDiv(xt.0 as u32, yt.0 as u32) as usize]);
             }
         } else {
             yt = -yt;
             if (xt > yt) {
-                return Angle::new(ANG180 + tantoangle[SlopeDiv(y.0 as u32, x.0 as u32) as usize]);
+                return Angle::new(
+                    ANG180 + tantoangle[SlopeDiv(yt.0 as u32, xt.0 as u32) as usize],
+                );
             } else {
                 return Angle::new(
-                    ANG270 - 1 - tantoangle[SlopeDiv(x.0 as u32, y.0 as u32) as usize],
+                    ANG270 - 1 - tantoangle[SlopeDiv(xt.0 as u32, yt.0 as u32) as usize],
                 );
             }
         }
@@ -175,5 +183,32 @@ impl std::fmt::Debug for VecF2 {
             .field(&self.x)
             .field(&self.y)
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{ANG45, ANG90, ANG180, ANG270, Angle, FT_ONE, FT_ZERO};
+
+    use super::VecF2;
+
+    #[test]
+    fn test_ptoa_values() {
+        let righthand = VecF2::new(FT_ONE, FT_ZERO);
+        let top = VecF2::new(FT_ZERO, FT_ONE);
+        let lefthand = VecF2::new(-FT_ONE, FT_ZERO);
+        let bottom = VecF2::new(FT_ZERO, -FT_ONE);
+        assert_eq!(righthand.to_angle(), Angle::new(0));
+        assert_eq!(top.to_angle(), Angle::new(ANG90 - 1));
+        assert_eq!(lefthand.to_angle(), Angle::new(ANG180 - 1));
+        assert_eq!(bottom.to_angle(), Angle::new(ANG270));
+        let top_right = VecF2::new(FT_ONE, FT_ONE);
+        let top_left = VecF2::new(-FT_ONE, FT_ONE);
+        let bottom_left = VecF2::new(-FT_ONE, -FT_ONE);
+        let bottom_right = VecF2::new(FT_ONE, -FT_ONE);
+        assert_eq!(top_right.to_angle(), Angle::new(ANG45 - 1));
+        assert_eq!(top_left.to_angle(), Angle::new(ANG45 + ANG90));
+        assert_eq!(bottom_left.to_angle(), Angle::new(ANG45 + ANG180 - 1));
+        assert_eq!(bottom_right.to_angle(), Angle::new(ANG45 + ANG270));
     }
 }

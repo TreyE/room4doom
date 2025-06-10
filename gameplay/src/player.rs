@@ -439,7 +439,7 @@ impl Player {
 
             if self.cmd.forwardmove != 0 && self.onground {
                 let angle = mobj.angle;
-                info!("Forward thrust: {}", self.cmd.forwardmove);
+                // info!("Forward thrust: {}", self.cmd.forwardmove);
                 self.thrust(angle, self.cmd.forwardmove as i32 * 2048);
             }
 

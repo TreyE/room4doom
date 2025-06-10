@@ -184,6 +184,8 @@ pub fn point_to_angle_2(point1: VecF2, point2: VecF2) -> Angle {
 
 #[cfg(test)]
 mod tests {
+    use crate::ANG90;
+
     use super::Angle;
     use super::bam_to_radian;
     use super::fixed_t;
@@ -263,8 +265,9 @@ mod tests {
     }
 
     #[test]
-    fn test_sin_zero() {
+    fn test_sin_values() {
         assert_eq!(Angle::new(0).sin(), fixed_t::new(25));
+        assert_eq!(Angle::new(ANG90).sin(), fixed_t::new(65535));
     }
 
     #[test]
