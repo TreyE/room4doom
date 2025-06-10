@@ -336,7 +336,7 @@ pub(crate) fn a_punch(player: &mut Player, _pspr: &mut PspDef) {
         if let Some(res) = slope {
             let target = res.line_target;
             mobj.start_sound(SfxName::Punch);
-            mobj.angle = point_to_angle_2(target.xy, mobj.xy);
+            mobj.angle = point_to_angle_2(mobj.xy, target.xy);
         }
     }
 }

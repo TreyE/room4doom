@@ -31,9 +31,9 @@ pub type SndServerRx = Receiver<SoundAction<SfxName, usize>>;
 pub type SndServerTx = Sender<SoundAction<SfxName, usize>>;
 
 pub fn point_to_angle_2(x1: fixed_t, y1: fixed_t, x2: fixed_t, y2: fixed_t) -> f32 {
-    let x = x1 - x2;
-    let y = y1 - y2;
-    y.atan2(x).to_float()
+    let x = (x1 - x2).to_float();
+    let y = (y1 - y2).to_float();
+    y.atan2(x)
 }
 
 pub fn angle_between(listener_angle: f32, other_x: f32, other_y: f32) -> f32 {

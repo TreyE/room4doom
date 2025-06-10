@@ -26,8 +26,8 @@ use super::MapObjFlag;
 
 pub const GRAVITY: fixed_t = fixed_t::from_int(1);
 pub const MAXMOVE: fixed_t = fixed_t::from_int(30);
-pub const STOPSPEED: fixed_t = fixed_t::from_float(fixed_to_float(0x1000));
-pub const FRICTION: fixed_t = fixed_t::from_float(fixed_to_float(0xE800));
+pub const STOPSPEED: fixed_t = fixed_t::new(0x00001000);
+pub const FRICTION: fixed_t = fixed_t::new(0x0000E800);
 
 //const MAXSPECIALCROSS: i32 = 8;
 pub const PT_ADDLINES: i32 = 1;
@@ -175,7 +175,7 @@ impl MapObject {
         let mut ptryy;
 
         while xmove != FT_ZERO || ymove != FT_ZERO {
-            if xmove > MAXMOVE / FT_TWO || ymove > MAXMOVE / FT_TWO {
+            if xmove.abs() > MAXMOVE / FT_TWO || ymove.abs() > MAXMOVE / FT_TWO {
                 ptryx = self.xy.x + xmove / FT_TWO;
                 ptryy = self.xy.y + ymove / FT_TWO;
                 xmove /= FT_TWO;
@@ -242,10 +242,8 @@ impl MapObject {
             pside = player.cmd.sidemove;
         }
 
-        if self.momxy.x > -STOPSPEED
-            && self.momxy.x < STOPSPEED
-            && self.momxy.y > -STOPSPEED
-            && self.momxy.y < STOPSPEED
+        if self.momxy.x.abs() < STOPSPEED
+            && self.momxy.y.abs() < STOPSPEED
             && (self.player.is_none() || pfwd == 0 && pside == 0)
         {
             if self.player().is_some() {

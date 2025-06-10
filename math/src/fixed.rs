@@ -1,5 +1,5 @@
 use std::{
-    i32,
+    f32, i32,
     ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Shr, Sub, SubAssign},
 };
 
@@ -29,10 +29,6 @@ pub const FT_SIXTEEN: fixed_t = fixed_t::from_int(16);
 pub const FT_MAX: fixed_t = fixed_t::new(i32::MAX);
 
 impl fixed_t {
-    pub fn atan2(self, rhs: Self) -> Angle {
-        Angle::new(float_to_fixed(fixed_to_float(self.0).atan2(fixed_to_float(rhs.0))) as u32)
-    }
-
     pub const fn to_float(self) -> f32 {
         fixed_to_float(self.0)
     }
@@ -44,7 +40,7 @@ impl fixed_t {
 
     #[inline(always)]
     pub const fn from_i16(v: i16) -> Self {
-        Self::new((v as i32) << FRACBITS)
+        Self::new((v as i32) * 65536)
     }
 
     #[inline]
@@ -53,7 +49,7 @@ impl fixed_t {
     }
 
     pub const fn from_int(v: i32) -> Self {
-        fixed_t(v << FRACBITS)
+        fixed_t(v * 65536)
     }
 
     pub const fn new(v: i32) -> Self {
@@ -73,7 +69,7 @@ impl fixed_t {
     }
 
     pub const fn to_int(self) -> i32 {
-        self.0 >> FRACBITS
+        self.0 / 65536
     }
 }
 
@@ -128,7 +124,7 @@ impl Mul for fixed_t {
 
     #[inline]
     fn mul(self, rhs: Self) -> Self::Output {
-        fixed_t::new(((self.0 as i64 * rhs.0 as i64) >> 32) as i32)
+        fixed_t::new(((self.0 as i64 * rhs.0 as i64) / (u32::MAX as i64)) as i32)
     }
 }
 

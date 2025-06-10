@@ -904,7 +904,7 @@ mod tests {
     use crate::level::map_data::{BSPTrace, IS_SSECTOR_MASK, MapData};
     use crate::{Node, PicData};
     use glam::Vec2;
-    use math::Angle;
+    use math::{ANG90, ANG180, Angle, FT_ONE, VecF2, fixed_t};
     use std::f32::consts::{FRAC_PI_2, PI};
     use wad::WadData;
     use wad::extended::WadExtendedMap;
@@ -930,11 +930,17 @@ mod tests {
         assert_eq!(
             map.nodes[666],
             Node {
-                xy: Vec2::new(12.0, -342.0),
-                delta: Vec2::new(0.0, -20.0),
+                xy: VecF2::new(fixed_t::from_float(12.0), fixed_t::from_float(-342.0)),
+                delta: VecF2::new(fixed_t::from_float(0.0), fixed_t::from_float(-20.0)),
                 bboxes: [
-                    [Vec2::new(0.0, -342.0), Vec2::new(12.0, -362.0)],
-                    [Vec2::new(12.0, -333.0), Vec2::new(24.0, -371.0)]
+                    [
+                        VecF2::new(fixed_t::from_float(0.0), fixed_t::from_float(-342.0)),
+                        VecF2::new(fixed_t::from_float(12.0), fixed_t::from_float(-362.0))
+                    ],
+                    [
+                        VecF2::new(fixed_t::from_float(12.0), fixed_t::from_float(-333.0)),
+                        VecF2::new(fixed_t::from_float(24.0), fixed_t::from_float(-371.0))
+                    ]
                 ],
                 children: [665, 2147484322]
             }
@@ -948,12 +954,20 @@ mod tests {
         // sidenum: 4387
         let mut success = false;
         for (i, seg) in map.segments().iter().enumerate() {
-            if seg.v1 == Vec2::new(496.0, -1072.0) && seg.v2 == Vec2::new(496.0, -1040.0) {
+            if seg.v1 == VecF2::new(fixed_t::from_float(496.0), fixed_t::from_float(-1072.0))
+                && seg.v2 == VecF2::new(fixed_t::from_float(496.0), fixed_t::from_float(-1040.0))
+            {
                 assert_eq!(ext.segments[i].linedef, 2670);
                 let v1 = &map.vertexes[ext.segments[i].start_vertex as usize];
                 let v2 = &map.vertexes[ext.segments[i].end_vertex as usize];
-                assert_eq!(v1, &Vec2::new(496.0, -1072.0));
-                assert_eq!(v2, &Vec2::new(496.0, -1040.0));
+                assert_eq!(
+                    v1,
+                    &VecF2::new(fixed_t::from_float(496.0), fixed_t::from_float(-1072.0))
+                );
+                assert_eq!(
+                    v2,
+                    &VecF2::new(fixed_t::from_float(496.0), fixed_t::from_float(-1040.0))
+                );
 
                 dbg!(i, &ext.segments[i]);
                 assert_eq!(ext.segments[i].linedef, 2670);
@@ -1017,8 +1031,14 @@ mod tests {
         let mut map = MapData::default();
         map.load("MAP20", &pic_data, &wad);
         // line 1590
-        assert_eq!(map.linedefs[1590].v1, Vec2::new(-560.0, -3952.0));
-        assert_eq!(map.linedefs[1590].v2, Vec2::new(-560.0, -3920.0));
+        assert_eq!(
+            map.linedefs[1590].v1,
+            VecF2::new(fixed_t::from_float(-560.0), fixed_t::from_float(-3952.0))
+        );
+        assert_eq!(
+            map.linedefs[1590].v2,
+            VecF2::new(fixed_t::from_float(-560.0), fixed_t::from_float(-3920.0))
+        );
         assert_eq!(map.linedefs[1590].front_sidedef.midtexture, Some(1657));
         assert_eq!(
             map.linedefs[1590].back_sidedef.as_ref().unwrap().midtexture,
@@ -1043,15 +1063,15 @@ mod tests {
         let wad = WadData::new("../doom1.wad".into());
         let mut map = MapData::default();
         map.load("E1M1", &PicData::default(), &wad);
-        let origin = Vec2::new(710.0, -3400.0); // left corner from start
-        let endpoint = Vec2::new(710.0, -3000.0); // 3 sectors up
+        let origin = VecF2::new(fixed_t::from_float(710.0), fixed_t::from_float(-3400.0)); // left corner from start
+        let endpoint = VecF2::new(fixed_t::from_float(710.0), fixed_t::from_float(-3000.0)); // 3 sectors up
 
         // let origin = Vec2::new(1056.0, -3616.0); // player start
         // let endpoint = Vec2::new(1088.0, -2914.0); // corpse ahead, 10?
         //let endpoint = Vec2::new(1340.0, -2884.0); // ?
         //let endpoint = Vec2::new(2912.0, -2816.0);
 
-        let mut bsp_trace = BSPTrace::new_line(origin, endpoint, 1.0);
+        let mut bsp_trace = BSPTrace::new_line(origin, endpoint, FT_ONE);
         // bsp_trace.trace_to_point(&map);
         // dbg!(&nodes.len());
         // dbg!(&nodes);
@@ -1076,7 +1096,7 @@ mod tests {
         let mut count = 0;
         for x in 705..895 {
             for y in -3551..-3361 {
-                bsp_trace.origin = Vec2::new(x as f32, y as f32);
+                bsp_trace.origin = VecF2::new(fixed_t::from_int(x), fixed_t::from_int(y));
                 bsp_trace.find_line_inner(map.start_node, &map, &mut count);
 
                 // Sector the starting vector is in. 3 segs attached
@@ -1084,33 +1104,33 @@ mod tests {
                 let start = sub_sect[*x as usize].start_seg as usize;
 
                 // Bottom horizontal line
-                assert_eq!(segs[start].v1.x, 832.0);
-                assert_eq!(segs[start].v1.y, -3552.0);
-                assert_eq!(segs[start].v2.x, 704.0);
-                assert_eq!(segs[start].v2.y, -3552.0);
+                assert_eq!(segs[start].v1.x.to_float(), 832.0);
+                assert_eq!(segs[start].v1.y.to_float(), -3552.0);
+                assert_eq!(segs[start].v2.x.to_float(), 704.0);
+                assert_eq!(segs[start].v2.y.to_float(), -3552.0);
                 // Left side of the pillar
-                assert_eq!(segs[start + 1].v1.x, 896.0);
-                assert_eq!(segs[start + 1].v1.y, -3360.0);
-                assert_eq!(segs[start + 1].v2.x, 896.0);
-                assert_eq!(segs[start + 1].v2.y, -3392.0);
+                assert_eq!(segs[start + 1].v1.x.to_float(), 896.0);
+                assert_eq!(segs[start + 1].v1.y.to_float(), -3360.0);
+                assert_eq!(segs[start + 1].v2.x.to_float(), 896.0);
+                assert_eq!(segs[start + 1].v2.y.to_float(), -3392.0);
                 // Left wall
-                assert_eq!(segs[start + 2].v1.x, 704.0);
-                assert_eq!(segs[start + 2].v1.y, -3552.0);
-                assert_eq!(segs[start + 2].v2.x, 704.0);
-                assert_eq!(segs[start + 2].v2.y, -3360.0);
+                assert_eq!(segs[start + 2].v1.x.to_float(), 704.0);
+                assert_eq!(segs[start + 2].v1.y.to_float(), -3552.0);
+                assert_eq!(segs[start + 2].v2.x.to_float(), 704.0);
+                assert_eq!(segs[start + 2].v2.y.to_float(), -3360.0);
 
                 // Last sector directly above starting vector
                 let x = bsp_trace.intercepted_subsectors().last().unwrap();
                 let start = sub_sect[*x as usize].start_seg as usize;
 
-                assert_eq!(segs[start].v1.x, 896.0);
-                assert_eq!(segs[start].v1.y, -3072.0);
-                assert_eq!(segs[start].v2.x, 896.0);
-                assert_eq!(segs[start].v2.y, -3104.0);
-                assert_eq!(segs[start + 1].v1.x, 704.0);
-                assert_eq!(segs[start + 1].v1.y, -3104.0);
-                assert_eq!(segs[start + 1].v2.x, 704.0);
-                assert_eq!(segs[start + 1].v2.y, -2944.0);
+                assert_eq!(segs[start].v1.x.to_float(), 896.0);
+                assert_eq!(segs[start].v1.y.to_float(), -3072.0);
+                assert_eq!(segs[start].v2.x.to_float(), 896.0);
+                assert_eq!(segs[start].v2.y.to_float(), -3104.0);
+                assert_eq!(segs[start + 1].v1.x.to_float(), 704.0);
+                assert_eq!(segs[start + 1].v1.y.to_float(), -3104.0);
+                assert_eq!(segs[start + 1].v2.x.to_float(), 704.0);
+                assert_eq!(segs[start + 1].v2.y.to_float(), -2944.0);
             }
         }
     }
@@ -1152,19 +1172,22 @@ mod tests {
 
         // Check links
         // LINEDEF->VERTEX
-        assert_eq!(linedefs[2].v1.x as i32, 1088);
-        assert_eq!(linedefs[2].v2.x as i32, 1088);
+        assert_eq!(linedefs[2].v1.x.to_int(), 1088);
+        assert_eq!(linedefs[2].v2.x.to_int(), 1088);
         // // LINEDEF->SIDEDEF
         // assert_eq!(linedefs[2].front_sidedef.midtexture, "LITE3");
         // // LINEDEF->SIDEDEF->SECTOR
         // assert_eq!(linedefs[2].front_sidedef.sector.floorpic, "FLOOR4_8");
         // // LINEDEF->SIDEDEF->SECTOR
-        assert_eq!(linedefs[2].front_sidedef.sector.ceilingheight, 72.0);
+        assert_eq!(
+            linedefs[2].front_sidedef.sector.ceilingheight.to_float(),
+            72.0
+        );
 
         let segments = map.segments;
         // SEGMENT->VERTEX
-        assert_eq!(segments[0].v1.x as i32, 1552);
-        assert_eq!(segments[0].v2.x as i32, 1552);
+        assert_eq!(segments[0].v1.x.to_int(), 1552);
+        assert_eq!(segments[0].v2.x.to_int(), 1552);
         // SEGMENT->LINEDEF->SIDEDEF->SECTOR
         // seg:0 -> line:152 -> side:209 -> sector:0 -> ceiltex:CEIL3_5
         // lightlevel:160 assert_eq!(
@@ -1185,13 +1208,13 @@ mod tests {
         map.load("E1M1", &PicData::default(), &wad);
 
         let linedefs = map.linedefs();
-        assert_eq!(linedefs[0].v1.x as i32, 1088);
-        assert_eq!(linedefs[0].v2.x as i32, 1024);
-        assert_eq!(linedefs[2].v1.x as i32, 1088);
-        assert_eq!(linedefs[2].v2.x as i32, 1088);
+        assert_eq!(linedefs[0].v1.x.to_int(), 1088);
+        assert_eq!(linedefs[0].v2.x.to_int(), 1024);
+        assert_eq!(linedefs[2].v1.x.to_int(), 1088);
+        assert_eq!(linedefs[2].v2.x.to_int(), 1088);
 
-        assert_eq!(linedefs[474].v1.x as i32, 3536);
-        assert_eq!(linedefs[474].v2.x as i32, 3520);
+        assert_eq!(linedefs[474].v1.x.to_int(), 3536);
+        assert_eq!(linedefs[474].v2.x.to_int(), 3520);
         assert!(linedefs[2].back_sidedef.is_none());
         assert_eq!(linedefs[474].flags, 1);
         assert!(linedefs[474].back_sidedef.is_none());
@@ -1209,15 +1232,15 @@ mod tests {
         map.load("E1M1", &PicData::default(), &wad);
 
         let sectors = map.sectors();
-        assert_eq!(sectors[0].floorheight, 0.0);
-        assert_eq!(sectors[0].ceilingheight, 72.0);
-        assert_eq!(sectors[0].lightlevel, 160);
-        assert_eq!(sectors[0].tag, 0);
-        assert_eq!(sectors[84].floorheight, -24.0);
-        assert_eq!(sectors[84].ceilingheight, 48.0);
-        assert_eq!(sectors[84].lightlevel, 255);
-        assert_eq!(sectors[84].special, 0);
-        assert_eq!(sectors[84].tag, 0);
+        assert_eq!(sectors[0].floorheight.to_float(), 0.0);
+        assert_eq!(sectors[0].ceilingheight.to_float(), 72.0);
+        assert_eq!(sectors[0].lightlevel as i32, 160);
+        assert_eq!(sectors[0].tag as i16, 0);
+        assert_eq!(sectors[84].floorheight.to_float(), -24.0);
+        assert_eq!(sectors[84].ceilingheight.to_float(), 48.0);
+        assert_eq!(sectors[84].lightlevel as usize, 255);
+        assert_eq!(sectors[84].special as i16, 0);
+        assert_eq!(sectors[84].tag as i16, 0);
     }
 
     #[test]
@@ -1228,12 +1251,12 @@ mod tests {
         map.load("E1M1", &PicData::default(), &wad);
 
         let sidedefs = map.sidedefs();
-        assert_eq!(sidedefs[0].rowoffset, 0.0);
-        assert_eq!(sidedefs[0].textureoffset, 0.0);
-        assert_eq!(sidedefs[9].rowoffset, 48.0);
-        assert_eq!(sidedefs[9].textureoffset, 0.0);
-        assert_eq!(sidedefs[647].rowoffset, 0.0);
-        assert_eq!(sidedefs[647].textureoffset, 4.0);
+        assert_eq!(sidedefs[0].rowoffset.to_float(), 0.0);
+        assert_eq!(sidedefs[0].textureoffset.to_float(), 0.0);
+        assert_eq!(sidedefs[9].rowoffset.to_float(), 48.0);
+        assert_eq!(sidedefs[9].textureoffset.to_float(), 0.0);
+        assert_eq!(sidedefs[647].rowoffset.to_float(), 0.0);
+        assert_eq!(sidedefs[647].textureoffset.to_float(), 4.0);
     }
 
     #[test]
@@ -1244,13 +1267,13 @@ mod tests {
         map.load("E1M1", &PicData::default(), &wad);
 
         let segments = map.segments();
-        assert_eq!(segments[0].v1.x as i32, 1552);
-        assert_eq!(segments[0].v2.x as i32, 1552);
-        assert_eq!(segments[731].v1.x as i32, 3040);
-        assert_eq!(segments[731].v2.x as i32, 2976);
-        assert_eq!(segments[0].angle, Angle::new(FRAC_PI_2));
+        assert_eq!(segments[0].v1.x.to_int(), 1552);
+        assert_eq!(segments[0].v2.x.to_int(), 1552);
+        assert_eq!(segments[731].v1.x.to_int(), 3040);
+        assert_eq!(segments[731].v2.x.to_int(), 2976);
+        assert_eq!(segments[0].angle, Angle::new(ANG90));
 
-        assert_eq!(segments[731].angle, Angle::new(PI));
+        assert_eq!(segments[731].angle, Angle::new(ANG180));
 
         let subsectors = map.subsectors();
         assert_eq!(subsectors[0].seg_count, 4);
@@ -1268,7 +1291,7 @@ mod tests {
         map.load("E1M1", &PicData::default(), &wad);
 
         // The actual location of THING0
-        let player = Vec2::new(1056.0, -3616.0);
+        let player = VecF2::new(fixed_t::from_float(1056.0), fixed_t::from_float(-3616.0));
         let subsector = map.point_in_subsector_raw(player);
         //assert_eq!(subsector_id, Some(103));
         assert_eq!(subsector.seg_count, 5);
@@ -1282,26 +1305,26 @@ mod tests {
         map.load("E1M1", &PicData::default(), &wad);
 
         let nodes = map.get_nodes();
-        assert_eq!(nodes[0].xy.x as i32, 1552);
-        assert_eq!(nodes[0].xy.y as i32, -2432);
-        assert_eq!(nodes[0].delta.x as i32, 112);
-        assert_eq!(nodes[0].delta.y as i32, 0);
+        assert_eq!(nodes[0].xy.x.to_int(), 1552);
+        assert_eq!(nodes[0].xy.y.to_int(), -2432);
+        assert_eq!(nodes[0].delta.x.to_int(), 112);
+        assert_eq!(nodes[0].delta.y.to_int(), 0);
 
-        assert_eq!(nodes[0].bboxes[0][0].x as i32, 1552); //left
-        assert_eq!(nodes[0].bboxes[0][0].y as i32, -2432); //top
-        assert_eq!(nodes[0].bboxes[0][1].x as i32, 1664); //right
-        assert_eq!(nodes[0].bboxes[0][1].y as i32, -2560); //bottom
+        assert_eq!(nodes[0].bboxes[0][0].x.to_int(), 1552); //left
+        assert_eq!(nodes[0].bboxes[0][0].y.to_int(), -2432); //top
+        assert_eq!(nodes[0].bboxes[0][1].x.to_int(), 1664); //right
+        assert_eq!(nodes[0].bboxes[0][1].y.to_int(), -2560); //bottom
 
-        assert_eq!(nodes[0].bboxes[1][0].x as i32, 1600);
-        assert_eq!(nodes[0].bboxes[1][0].y as i32, -2048);
+        assert_eq!(nodes[0].bboxes[1][0].x.to_int(), 1600);
+        assert_eq!(nodes[0].bboxes[1][0].y.to_int(), -2048);
 
         assert_eq!(nodes[0].children[0], 2147483648);
         assert_eq!(nodes[0].children[1], 2147483649);
 
-        assert_eq!(nodes[235].xy.x as i32, 2176);
-        assert_eq!(nodes[235].xy.y as i32, -3776);
-        assert_eq!(nodes[235].delta.x as i32, 0);
-        assert_eq!(nodes[235].delta.y as i32, -32);
+        assert_eq!(nodes[235].xy.x.to_int(), 2176);
+        assert_eq!(nodes[235].xy.y.to_int(), -3776);
+        assert_eq!(nodes[235].delta.x.to_int(), 0);
+        assert_eq!(nodes[235].delta.y.to_int(), -32);
         assert_eq!(nodes[235].children[0], 128);
         assert_eq!(nodes[235].children[1], 234);
 

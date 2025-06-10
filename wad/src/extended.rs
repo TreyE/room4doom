@@ -230,6 +230,8 @@ impl WadExtendedMap {
 
 #[cfg(test)]
 mod tests {
+    use math::fixed_t;
+
     use crate::WadData;
     use crate::types::{WadLineDef, WadNode, WadSector, WadSideDef, WadVertex};
 
@@ -245,15 +247,15 @@ mod tests {
         // All verified with crispy
         const FRACUNIT: f32 = (1 << 16) as f32;
         // newVerts: 0 : 72351744
-        assert_eq!(map.vertexes[0].x, 72351744f32 / FRACUNIT);
+        assert_eq!(map.vertexes[0].x, fixed_t::new(72351744));
         // newVerts: 965 : 85983232
-        assert_eq!(map.vertexes[965].x, 85983232f32 / FRACUNIT);
+        assert_eq!(map.vertexes[965].x, fixed_t::new(85983232));
 
         let vertexes: Vec<WadVertex> = wad.vertex_iter(name).collect();
         // org_vertexes: 5485 : 4390912
-        assert_eq!(vertexes[5485].x, 4390912f32 / FRACUNIT);
+        assert_eq!(vertexes[5485].x, fixed_t::new(4390912));
         // vertexes: 4025 : -28311552
-        assert_eq!(vertexes[4025].x, -28311552f32 / FRACUNIT);
+        assert_eq!(vertexes[4025].x, fixed_t::new(-28311552));
     }
 
     #[ignore = "sunder.wad can't be included in git"]
@@ -383,17 +385,17 @@ mod tests {
 
         let vertexes: Vec<WadVertex> = wad.vertex_iter(name).collect();
         assert_eq!(map.num_org_vertices, vertexes.len());
-        assert_eq!(vertexes[2752].x, 1016.0);
-        assert_eq!(vertexes[2752].y, -720.0);
-        assert_eq!(vertexes[2772].x, 1020.0);
-        assert_eq!(vertexes[2772].y, -716.0);
-        assert_eq!(vertexes[2499].x, 496.0);
-        assert_eq!(vertexes[2499].y, -1040.0);
-        assert_eq!(vertexes[2500].x, 496.0);
-        assert_eq!(vertexes[2500].y, -1072.0);
+        assert_eq!(vertexes[2752].x.to_float(), 1016.0);
+        assert_eq!(vertexes[2752].y.to_float(), -720.0);
+        assert_eq!(vertexes[2772].x.to_float(), 1020.0);
+        assert_eq!(vertexes[2772].y.to_float(), -716.0);
+        assert_eq!(vertexes[2499].x.to_float(), 496.0);
+        assert_eq!(vertexes[2499].y.to_float(), -1040.0);
+        assert_eq!(vertexes[2500].x.to_float(), 496.0);
+        assert_eq!(vertexes[2500].y.to_float(), -1072.0);
 
-        assert_eq!(map.vertexes[666].x, 2176.0);
-        assert_eq!(map.vertexes[666].y, -496.0);
+        assert_eq!(map.vertexes[666].x.to_float(), 2176.0);
+        assert_eq!(map.vertexes[666].y.to_float(), -496.0);
 
         let sidedefs: Vec<WadSideDef> = wad.sidedef_iter(name).collect();
         assert_eq!(sidedefs.len(), 12781);

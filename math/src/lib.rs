@@ -12,6 +12,8 @@ pub use intercept::*;
 
 mod fixed;
 
+mod fixed_tables;
+
 pub use fixed::{
     FT_EIGHT, FT_FOUR, FT_FOURTH, FT_MAX, FT_ONE, FT_SIXTEEN, FT_TWO, FT_ZERO, fixed_t,
 };
@@ -176,9 +178,15 @@ pub fn circle_circle_intersect(
     false
 }
 
+pub fn point_to_angle_2(point1: VecF2, point2: VecF2) -> Angle {
+    (point2 - point1).to_angle()
+}
+
 #[cfg(test)]
 mod tests {
+    use super::Angle;
     use super::bam_to_radian;
+    use super::fixed_t;
     use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 
     // use crate::play::utilities::{circle_point_intersect,
@@ -253,10 +261,14 @@ mod tests {
         assert_eq!(bam_to_radian(ang180), PI);
         assert_eq!(bam_to_radian(one).to_degrees(), 5.625);
     }
-}
 
-pub fn point_to_angle_2(point1: VecF2, point2: VecF2) -> Angle {
-    let x = point1.x - point2.x;
-    let y = point1.y - point2.y;
-    y.atan2(x)
+    #[test]
+    fn test_sin_zero() {
+        assert_eq!(Angle::new(0).sin(), fixed_t::new(25));
+    }
+
+    #[test]
+    fn test_cos_one() {
+        assert_eq!(Angle::new(0).cos(), fixed_t::new(65535));
+    }
 }

@@ -19,6 +19,9 @@ pub const FINEMASK: u32 = FINEANGLES - 1;
 pub const ANG1: u32 = ANG45 / 45;
 
 const DEG_TO_RAD: f32 = std::f32::consts::PI / 180.0;
+
+use crate::fixed_tables::finesine_source;
+
 /*
 
 #define ANG135  0x60000000
@@ -55,37 +58,25 @@ impl Angle {
         fixed_t::new((((self.0 as u64) << FRACBITS) / (ANG1 as u64)) as i32)
     }
 
-    pub const fn to_table(self) -> usize {
-        (self.0 >> 19) as usize
+    #[inline]
+    pub fn sin_cos(&self) -> (fixed_t, fixed_t) {
+        (self.sin(), self.cos())
     }
 
     #[inline]
-    pub const fn sin_cos(&self) -> (fixed_t, fixed_t) {
-        let idx = self.to_table();
-        (
-            fixed_t::from_float(SIN_TABLE[idx]),
-            fixed_t::from_float(COS_TABLE[idx]),
-        )
+    pub fn sin(&self) -> fixed_t {
+        fixed_t::new(finesine_source[(self.0 >> 19) as usize])
     }
 
     #[inline]
-    pub const fn sin(&self) -> fixed_t {
-        fixed_t::from_float(SIN_TABLE[self.to_table()])
-    }
-
-    #[inline]
-    pub const fn cos(&self) -> fixed_t {
-        fixed_t::from_float(COS_TABLE[self.to_table()])
+    pub fn cos(&self) -> fixed_t {
+        fixed_t::new(finesine_source[((self.0 >> 19) + 2048) as usize])
     }
 
     #[inline(always)]
-    pub const fn unit(&self) -> VecF2 {
+    pub fn unit(&self) -> VecF2 {
         let (y, x) = self.sin_cos();
         VecF2::new(x, y)
-    }
-
-    pub const fn to_float(&self) -> f32 {
-        (self.0 as f32) / FRACUNIT
     }
 }
 

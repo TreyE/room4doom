@@ -348,9 +348,9 @@ impl Player {
     /// Moves the given origin along a given angle.
     fn thrust(&mut self, angle: Angle, mv: i32) {
         // mv is in a fixed float format, we need to convert it
-        let mv = fixed_t::new(mv);
-        let x = mv * angle.cos();
-        let y = mv * angle.sin();
+        let fixed_mv = fixed_t::new(mv);
+        let x = fixed_mv * angle.cos();
+        let y = fixed_mv * angle.sin();
         let mxy = VecF2::new(x, y);
         if let Some(mobj) = self.mobj_mut() {
             mobj.momxy += mxy;
@@ -439,11 +439,13 @@ impl Player {
 
             if self.cmd.forwardmove != 0 && self.onground {
                 let angle = mobj.angle;
+                info!("Forward thrust: {}", self.cmd.forwardmove);
                 self.thrust(angle, self.cmd.forwardmove as i32 * 2048);
             }
 
             if self.cmd.sidemove != 0 && self.onground {
                 let angle = mobj.angle;
+
                 self.thrust(angle - Angle::new(ANG90), self.cmd.sidemove as i32 * 2048);
             }
 
