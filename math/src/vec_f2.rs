@@ -1,6 +1,8 @@
 use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Sub};
 
-use crate::{ANG90, ANG180, ANG270, Angle, FT_ZERO, fixed::fixed_t, fixed_tables::tantoangle};
+use crate::{
+    ANG90, ANG180, ANG270, Angle, FT_ZERO, fixed::fixed_t, fixed_tables::tantoangle, fixed_to_float,
+};
 
 #[derive(Clone, Copy, Default, PartialEq)]
 pub struct VecF2 {
@@ -23,6 +25,13 @@ impl VecF2 {
         } else {
             dx + dy - (dy >> 1)
         }
+    }
+
+    #[inline]
+    pub fn exact_length(self) -> fixed_t {
+        let dx = self.x.to_float();
+        let dy = self.x.to_float();
+        fixed_t::from_float((dx * dx + dy * dy).sqrt())
     }
 
     #[inline]

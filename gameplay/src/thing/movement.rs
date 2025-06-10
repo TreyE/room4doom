@@ -6,7 +6,7 @@ use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 use std::ptr;
 
 use glam::Vec2;
-use log::{debug, error};
+use log::{debug, error, info};
 
 use crate::doom_def::{FLOATSPEED, USERANGE, VIEWHEIGHT};
 use crate::env::specials::cross_special_line;
@@ -144,6 +144,10 @@ impl MapObject {
 
     /// Doom function name `P_XYMovement`
     pub(crate) fn p_xy_movement(&mut self) {
+        if self.kind == MapObjKind::MT_PLAYER {
+            info!("Object momentum x: {}", self.momxy.x);
+            info!("Object momentum y: {}", self.momxy.y);
+        }
         if self.momxy.x == FT_ZERO && self.momxy.y == FT_ZERO {
             if self.flags & MapObjFlag::Skullfly as u32 != 0 {
                 self.flags &= !(MapObjFlag::Skullfly as u32);
@@ -169,6 +173,9 @@ impl MapObject {
         // etc
         self.momxy.x = self.momxy.x.clamp(-MAXMOVE, MAXMOVE);
         self.momxy.y = self.momxy.y.clamp(-MAXMOVE, MAXMOVE);
+
+        info!("Object momentum x: {}", self.momxy.x);
+        info!("Object momentum y: {}", self.momxy.y);
         let mut xmove = self.momxy.x;
         let mut ymove = self.momxy.y;
         let mut ptryx;

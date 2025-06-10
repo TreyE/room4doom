@@ -121,3 +121,9 @@ impl Shr<usize> for Angle {
         Angle::new(self.0 >> rhs)
     }
 }
+
+impl std::fmt::Display for Angle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}]", self.0)
+    }
+}

@@ -45,11 +45,11 @@ impl fixed_t {
 
     #[inline]
     pub const fn from_float(v: f32) -> Self {
-        fixed_t(float_to_fixed(v))
+        fixed_t::new(float_to_fixed(v))
     }
 
     pub const fn from_int(v: i32) -> Self {
-        fixed_t(v * 65536)
+        fixed_t::new(v * 65536)
     }
 
     pub const fn new(v: i32) -> Self {
@@ -58,10 +58,6 @@ impl fixed_t {
 
     pub const fn abs(self) -> Self {
         fixed_t(self.0.abs())
-    }
-
-    pub const fn sqrt(self) -> Self {
-        fixed_t(1)
     }
 
     pub const fn is_sign_negative(self) -> bool {
@@ -124,7 +120,7 @@ impl Mul for fixed_t {
 
     #[inline]
     fn mul(self, rhs: Self) -> Self::Output {
-        fixed_t::new(((self.0 as i64 * rhs.0 as i64) / (u32::MAX as i64)) as i32)
+        fixed_t::new(((self.0 as i64 * rhs.0 as i64) >> 16) as i32)
     }
 }
 
@@ -191,5 +187,18 @@ impl std::fmt::Display for fixed_t {
         } else {
             write!(f, "[{}]", self.0)
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::FT_ONE;
+
+    use super::fixed_t;
+
+    #[test]
+    fn test_fmul() {
+        let result = fixed_t::from_int(2) * FT_ONE;
+        assert_eq!(result, fixed_t::from_int(2))
     }
 }

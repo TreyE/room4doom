@@ -176,9 +176,9 @@ impl SoftwareRenderer {
         let viewangle = mobj.angle.to_float_angle();
 
         // Blocks some zdoom segs rendering
-        if !seg.is_facing_point(&mobj.xy) {
+        /*if !seg.is_facing_point(&mobj.xy) {
             return;
-        }
+        }*/
 
         let mut angle1 = vertex_angle_to_object(&seg.v1.to_vec_2(), mobj); // widescreen: Leave as is
         let mut angle2 = vertex_angle_to_object(&seg.v2.to_vec_2(), mobj); // widescreen: Leave as is

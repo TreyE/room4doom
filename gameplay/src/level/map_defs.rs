@@ -405,9 +405,7 @@ impl Segment {
     /// Helper to recalcuate the offset of a seg along the linedef line it is
     /// derived from. Required for ZDBSP style nodes.
     pub fn recalc_offset(v1: VecF2, v2: VecF2) -> fixed_t {
-        let a = v1.x - v2.x;
-        let b = v1.y - v2.y;
-        (a * a + b * b).sqrt()
+        (v2 - v1).exact_length()
     }
 
     /// True if the right side of the segment faces the point

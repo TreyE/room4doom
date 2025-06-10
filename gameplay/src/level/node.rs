@@ -1,7 +1,7 @@
 use crate::level::map_defs::Node;
 
 // use crate::play::utilities::ray_to_line_intersect;
-use math::VecF2;
+use math::{FT_ZERO, VecF2};
 
 impl Node {
     /// R_PointOnSide
@@ -10,13 +10,53 @@ impl Node {
     /// on
     #[inline]
     pub fn point_on_side(&self, v: &VecF2) -> usize {
-        let dx = v.x - self.xy.x;
-        let dy = v.y - self.xy.y;
-
-        if (self.delta.y * dx) > (dy * self.delta.x) {
-            return 0;
+        if self.delta.x == FT_ZERO {
+            if (v.x <= self.xy.x) {
+                if self.delta.y > FT_ZERO {
+                    return 1;
+                } else {
+                    return 0;
+                }
+            } else {
+                if self.delta.y < FT_ZERO {
+                    return 1;
+                } else {
+                    return 0;
+                }
+            }
         }
-        1
+
+        if self.delta.y == FT_ZERO {
+            if (v.y <= self.xy.y) {
+                if self.delta.x < FT_ZERO {
+                    return 1;
+                } else {
+                    return 0;
+                }
+            } else {
+                if self.delta.x > FT_ZERO {
+                    return 1;
+                } else {
+                    return 0;
+                }
+            }
+        }
+
+        let dx = v.x - self.xy.x;
+        let dy = v.x - self.xy.x;
+
+        if (self.delta.y.0 ^ self.delta.x.0 ^ dx.0 ^ dy.0) < 0 {
+            if (self.delta.y.0 ^ dx.0) < 0 {
+                return 1;
+            } else {
+                return 0;
+            }
+        } else {
+            if (v.y * (self.delta.x >> 16)) >= ((self.delta.y >> 16) * v.x) {
+                return 1;
+            }
+        }
+        0
     }
 
     #[inline]

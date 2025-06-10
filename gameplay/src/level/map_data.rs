@@ -8,7 +8,7 @@ use crate::{LineDefFlags, MapPtr, PicData};
 use glam::Vec2;
 #[cfg(Debug)]
 use log::error;
-use log::{debug, warn};
+use log::{debug, error, warn};
 use math::{
     ANG90, Angle, FT_ONE, FT_TWO, FT_ZERO, VecF2, bam_to_radian, circle_line_collide, fixed_t,
     fixed_to_float, point_to_angle_2,
@@ -370,8 +370,8 @@ impl MapData {
             };
 
             let offset = if ms.offset == i16::MIN {
-                let v2 = if ms.side == 1 { linedef.v2 } else { linedef.v1 };
-                Segment::recalc_offset(v1, v2)
+                let line_v = if ms.side == 1 { linedef.v2 } else { linedef.v1 };
+                Segment::recalc_offset(v1, line_v)
             } else {
                 fixed_t::from_i16(ms.offset)
             };
@@ -602,7 +602,7 @@ impl MapData {
     }
 
     /// Remove slime trails. killough 10/98
-    // Slime trails are inherent to Doom's coordinate system -- i.e. there is
+    /// Slime trails are inherent to Doom's coordinate system -- i.e. there is
     /// nothing that a node builder can do to prevent slime trails ALL of the
     /// time, because it's a product of the integer coordinate system, and
     /// just because two lines pass through exact integer coordinates,
@@ -653,7 +653,8 @@ impl MapData {
         let mut log: HashMap<String, VecF2> = HashMap::with_capacity(self.vertexes.len());
         for seg in self.segments.iter_mut() {
             let linedef = seg.linedef.as_mut();
-            if linedef.delta.x != FT_ZERO && linedef.delta.y != FT_ZERO {
+            if linedef.delta.x.abs() > fixed_t::new(10) && linedef.delta.y.abs() >= fixed_t::new(10)
+            {
                 let mut old = seg.v1;
                 let mut vertex = &mut seg.v1;
                 let mut step2 = false;
@@ -663,16 +664,18 @@ impl MapData {
                     } else if *vertex != linedef.v1 && *vertex != linedef.v2
                     // Exclude endpoints of linedefs
                     {
-                        let dx2 = linedef.delta.x * linedef.delta.x;
-                        let dy2 = linedef.delta.y * linedef.delta.y;
-                        let dxy = linedef.delta.x * linedef.delta.y;
+                        let dx2 = linedef.delta.x.to_int() as i64 * linedef.delta.x.to_int() as i64;
+                        let dy2 = linedef.delta.y.to_int() as i64 * linedef.delta.y.to_int() as i64;
+                        let dxy = linedef.delta.x.to_int() as i64 * linedef.delta.y.to_int() as i64;
                         let s = dx2 + dy2;
-                        let x0 = vertex.x;
-                        let y0 = vertex.y;
-                        let x1 = linedef.v1.x;
-                        let y1 = linedef.v1.y;
-                        vertex.x = (dx2 * x0 + dy2 * x1 + dxy * (y0 - y1)) / s;
-                        vertex.y = (dy2 * y0 + dx2 * y1 + dxy * (x0 - x1)) / s;
+                        let x0 = vertex.x.0 as i64;
+                        let y0 = vertex.y.0 as i64;
+                        let x1 = linedef.v1.x.0 as i64;
+                        let y1 = linedef.v1.y.0 as i64;
+                        let new_x = (dx2 * x0 + dy2 * x1 + dxy * (y0 - y1)) / s;
+                        let new_y = (dy2 * y0 + dx2 * y1 + dxy * (x0 - x1)) / s;
+                        vertex.x = fixed_t::new(new_x as i32);
+                        vertex.y = fixed_t::new(new_y as i32);
                         log.insert(old.to_string(), *vertex);
                     }
                     if step2 {
@@ -1293,9 +1296,9 @@ mod tests {
         // The actual location of THING0
         let player = VecF2::new(fixed_t::from_float(1056.0), fixed_t::from_float(-3616.0));
         let subsector = map.point_in_subsector_raw(player);
-        //assert_eq!(subsector_id, Some(103));
-        assert_eq!(subsector.seg_count, 5);
+        // assert_eq!(subsector, 103);
         assert_eq!(subsector.start_seg, 305);
+        assert_eq!(subsector.seg_count, 5);
     }
 
     #[test]
