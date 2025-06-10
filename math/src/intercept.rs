@@ -1,4 +1,4 @@
-use crate::{FT_ZERO, VecF2, fixed_t};
+use crate::{FT_ZERO, VecF2, fixed_t, vec_f2::point_on_side};
 use glam::Vec2;
 
 /// Used in path tracing for intercepts
@@ -14,20 +14,6 @@ impl Trace {
     pub const fn new(xyz: VecF2, dxyz: VecF2) -> Self {
         Self { xy: xyz, dxy: dxyz }
     }
-}
-
-/// Determine which side of the trace the vector point is on
-#[inline]
-pub fn point_on_side(trace: Trace, v2: VecF2) -> usize {
-    let dx = v2.x - trace.xy.x;
-    let dy = v2.y - trace.xy.y;
-
-    if (dy * trace.dxy.x) <= (trace.dxy.y * dx) {
-        // Front side
-        return 0;
-    }
-    // Backside
-    1
 }
 
 /// Returns the fractional intercept point along the first divline.

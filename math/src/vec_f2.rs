@@ -195,6 +195,60 @@ impl std::fmt::Debug for VecF2 {
     }
 }
 
+#[inline]
+pub fn point_on_side(ls: &VecF2, le: &VecF2, v: &VecF2) -> usize {
+    let ldx = le.x - ls.x;
+    let ldy = le.y - ls.y;
+
+    if ldx == FT_ZERO {
+        if (v.x <= ls.x) {
+            if ldy > FT_ZERO {
+                return 1;
+            } else {
+                return 0;
+            }
+        } else {
+            if ldx < FT_ZERO {
+                return 1;
+            } else {
+                return 0;
+            }
+        }
+    }
+
+    if ldy == FT_ZERO {
+        if (v.y <= ls.y) {
+            if ldx < FT_ZERO {
+                return 1;
+            } else {
+                return 0;
+            }
+        } else {
+            if ldx > FT_ZERO {
+                return 1;
+            } else {
+                return 0;
+            }
+        }
+    }
+
+    let dx = v.x - ls.x;
+    let dy = v.y - ls.y;
+
+    if (ldy.0 ^ ldx.0 ^ dx.0 ^ dy.0) < 0 {
+        if (ldy.0 ^ dx.0) < 0 {
+            return 1;
+        } else {
+            return 0;
+        }
+    } else {
+        if (dy * (ldx >> 16)) >= ((ldy >> 16) * dx) {
+            return 1;
+        }
+    }
+    0
+}
+
 #[cfg(test)]
 mod test {
     use crate::{ANG45, ANG90, ANG180, ANG270, Angle, FT_ONE, FT_ZERO};

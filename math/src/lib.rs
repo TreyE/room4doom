@@ -20,7 +20,7 @@ pub use fixed::{
 
 mod vec_f2;
 
-pub use vec_f2::VecF2;
+pub use vec_f2::{VecF2, point_on_side};
 
 mod float_angle;
 

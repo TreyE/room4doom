@@ -237,8 +237,8 @@ pub fn add_line_intercepts(
     intercepts: &mut Vec<Intercept>,
     earlyout: bool,
 ) -> bool {
-    let s1 = point_on_side(trace, line.v1);
-    let s2 = point_on_side(trace, line.v2);
+    let s1 = point_on_side(&trace.xy, &trace.dxy, &line.v1);
+    let s2 = point_on_side(&trace.xy, &trace.dxy, &line.v2);
 
     if s1 == s2 {
         // line isn't crossed
