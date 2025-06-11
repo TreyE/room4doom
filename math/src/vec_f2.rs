@@ -274,4 +274,7 @@ mod test {
         assert_eq!(bottom_left.to_angle(), Angle::new(ANG45 + ANG180 - 1));
         assert_eq!(bottom_right.to_angle(), Angle::new(ANG45 + ANG270));
     }
+
+    #[test]
+    fn test_point_on_side_results() {}
 }

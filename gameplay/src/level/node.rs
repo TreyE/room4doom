@@ -139,3 +139,44 @@ impl Node {
     //     false
     // }
 }
+
+#[cfg(test)]
+mod test {
+    use math::{FT_ONE, FT_TWO, FT_ZERO, VecF2, fixed_t};
+
+    use crate::Node;
+
+    fn pos_test_node(node_x: fixed_t, node_y: fixed_t, dx: fixed_t, dy: fixed_t) -> Node {
+        Node {
+            xy: VecF2::new(node_x, node_y),
+            delta: VecF2::new(dx, dy),
+            bboxes: [
+                [VecF2::default(), VecF2::default()],
+                [VecF2::default(), VecF2::default()],
+            ],
+            children: [0, 0],
+        }
+    }
+
+    fn run_node_test(
+        bsp: (fixed_t, fixed_t, fixed_t, fixed_t),
+        point: (fixed_t, fixed_t),
+        expected: usize,
+    ) {
+        let node = pos_test_node(bsp.0, bsp.1, bsp.2, bsp.3);
+        let point = VecF2::new(point.0, point.1);
+        assert_eq!(node.point_on_side(&point), expected);
+    }
+
+    #[test]
+    fn point_on_side_results() {
+        run_node_test((-FT_ONE, FT_ZERO, FT_TWO, FT_ZERO), (FT_ZERO, FT_ONE), 1);
+        run_node_test((-FT_ONE, FT_ZERO, FT_TWO, FT_ZERO), (FT_ZERO, -FT_ONE), 0);
+        run_node_test((FT_ONE, FT_ZERO, -FT_TWO, FT_ZERO), (FT_ZERO, FT_ONE), 0);
+        run_node_test((FT_ONE, FT_ZERO, -FT_TWO, FT_ZERO), (FT_ZERO, -FT_ONE), 1);
+        run_node_test((FT_ZERO, -FT_ONE, FT_ZERO, FT_TWO), (FT_ONE, FT_ZERO), 0);
+        run_node_test((FT_ZERO, -FT_ONE, FT_ZERO, FT_TWO), (-FT_ONE, FT_ZERO), 1);
+        run_node_test((FT_ZERO, FT_ONE, FT_ZERO, -FT_TWO), (FT_ONE, FT_ZERO), 1);
+        run_node_test((FT_ZERO, FT_ONE, FT_ZERO, -FT_TWO), (-FT_ONE, FT_ZERO), 0);
+    }
+}
