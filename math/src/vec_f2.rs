@@ -208,7 +208,7 @@ pub fn point_on_side(ls: &VecF2, le: &VecF2, v: &VecF2) -> usize {
                 return 0;
             }
         } else {
-            if ldx < FT_ZERO {
+            if ldy < FT_ZERO {
                 return 1;
             } else {
                 return 0;
@@ -251,7 +251,9 @@ pub fn point_on_side(ls: &VecF2, le: &VecF2, v: &VecF2) -> usize {
 
 #[cfg(test)]
 mod test {
-    use crate::{ANG45, ANG90, ANG180, ANG270, Angle, FT_ONE, FT_ZERO};
+    use crate::{
+        ANG45, ANG90, ANG180, ANG270, Angle, FT_ONE, FT_TWO, FT_ZERO, fixed_t, point_on_side,
+    };
 
     use super::VecF2;
 
@@ -275,6 +277,41 @@ mod test {
         assert_eq!(bottom_right.to_angle(), Angle::new(ANG45 + ANG270));
     }
 
+    fn run_side_test(
+        points: (fixed_t, fixed_t, fixed_t, fixed_t),
+        point: (fixed_t, fixed_t),
+        expected: usize,
+    ) {
+        let ls = VecF2::new(points.0, points.1);
+        let le = VecF2::new(points.2, points.3);
+        let point = VecF2::new(point.0, point.1);
+        assert_eq!(point_on_side(&ls, &le, &point), expected);
+    }
+
     #[test]
-    fn test_point_on_side_results() {}
+    fn point_on_side_results() {
+        // Horizontal Lines
+        run_side_test((-FT_ONE, FT_ZERO, FT_ONE, FT_ZERO), (FT_ZERO, FT_ONE), 1);
+        run_side_test((-FT_ONE, FT_ZERO, FT_ONE, FT_ZERO), (FT_ZERO, -FT_ONE), 0);
+        run_side_test((FT_ONE, FT_ZERO, -FT_ONE, FT_ZERO), (FT_ZERO, FT_ONE), 0);
+        run_side_test((FT_ONE, FT_ZERO, -FT_ONE, FT_ZERO), (FT_ZERO, -FT_ONE), 1);
+
+        // Vertical Lines
+        run_side_test((FT_ZERO, -FT_ONE, FT_ZERO, FT_ONE), (FT_ONE, FT_ZERO), 0);
+        run_side_test((FT_ZERO, -FT_ONE, FT_ZERO, FT_ONE), (-FT_ONE, FT_ZERO), 1);
+        run_side_test((FT_ZERO, FT_ONE, FT_ZERO, -FT_ONE), (FT_ONE, FT_ZERO), 1);
+        run_side_test((FT_ZERO, FT_ONE, FT_ZERO, -FT_ONE), (-FT_ONE, FT_ZERO), 0);
+
+        // Q3 to Q1 and reverse
+        run_side_test((-FT_ONE, -FT_ONE, FT_ONE, FT_ONE), (FT_ONE, -FT_ONE), 0);
+        run_side_test((-FT_ONE, -FT_ONE, FT_ONE, FT_ONE), (-FT_ONE, FT_ONE), 1);
+        run_side_test((FT_ONE, FT_ONE, -FT_ONE, -FT_ONE), (FT_ONE, -FT_ONE), 1);
+        run_side_test((FT_ONE, FT_ONE, -FT_ONE, -FT_ONE), (-FT_ONE, FT_ONE), 0);
+
+        // Q2 to Q4 and reverse
+        run_side_test((-FT_ONE, FT_ONE, FT_ONE, -FT_ONE), (-FT_ONE, -FT_ONE), 0);
+        run_side_test((-FT_ONE, FT_ONE, FT_ONE, -FT_ONE), (FT_ONE, FT_ONE), 1);
+        run_side_test((FT_ONE, -FT_ONE, -FT_ONE, FT_ONE), (-FT_ONE, -FT_ONE), 1);
+        run_side_test((FT_ONE, -FT_ONE, -FT_ONE, FT_ONE), (FT_ONE, FT_ONE), 0);
+    }
 }

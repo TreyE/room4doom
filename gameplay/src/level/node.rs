@@ -46,7 +46,7 @@ impl Node {
         }
 
         let dx = v.x - self.xy.x;
-        let dy = v.x - self.xy.y;
+        let dy = v.y - self.xy.y;
 
         if (ndy.0 ^ ndx.0 ^ dx.0 ^ dy.0) < 0 {
             if (ndy.0 ^ dx.0) < 0 {
@@ -55,7 +55,7 @@ impl Node {
                 return 0;
             }
         } else {
-            if (v.y * (ndx >> 16)) >= ((ndy >> 16) * v.x) {
+            if (dy * (ndx >> 16)) >= ((ndy >> 16) * dx) {
                 return 1;
             }
         }
@@ -170,13 +170,28 @@ mod test {
 
     #[test]
     fn point_on_side_results() {
+        // Horizontal Lines
         run_node_test((-FT_ONE, FT_ZERO, FT_TWO, FT_ZERO), (FT_ZERO, FT_ONE), 1);
         run_node_test((-FT_ONE, FT_ZERO, FT_TWO, FT_ZERO), (FT_ZERO, -FT_ONE), 0);
         run_node_test((FT_ONE, FT_ZERO, -FT_TWO, FT_ZERO), (FT_ZERO, FT_ONE), 0);
         run_node_test((FT_ONE, FT_ZERO, -FT_TWO, FT_ZERO), (FT_ZERO, -FT_ONE), 1);
+
+        // Vertical Lines
         run_node_test((FT_ZERO, -FT_ONE, FT_ZERO, FT_TWO), (FT_ONE, FT_ZERO), 0);
         run_node_test((FT_ZERO, -FT_ONE, FT_ZERO, FT_TWO), (-FT_ONE, FT_ZERO), 1);
         run_node_test((FT_ZERO, FT_ONE, FT_ZERO, -FT_TWO), (FT_ONE, FT_ZERO), 1);
         run_node_test((FT_ZERO, FT_ONE, FT_ZERO, -FT_TWO), (-FT_ONE, FT_ZERO), 0);
+
+        // Q3 to Q1 and reverse
+        run_node_test((-FT_ONE, -FT_ONE, FT_TWO, FT_TWO), (FT_ONE, -FT_ONE), 0);
+        run_node_test((-FT_ONE, -FT_ONE, FT_TWO, FT_TWO), (-FT_ONE, FT_ONE), 1);
+        run_node_test((FT_ONE, FT_ONE, -FT_TWO, -FT_TWO), (FT_ONE, -FT_ONE), 1);
+        run_node_test((FT_ONE, FT_ONE, -FT_TWO, -FT_TWO), (-FT_ONE, FT_ONE), 0);
+
+        // Q2 to Q4 and reverse
+        run_node_test((-FT_ONE, FT_ONE, FT_TWO, -FT_TWO), (-FT_ONE, -FT_ONE), 0);
+        run_node_test((-FT_ONE, FT_ONE, FT_TWO, -FT_TWO), (FT_ONE, FT_ONE), 1);
+        run_node_test((FT_ONE, -FT_ONE, -FT_TWO, FT_TWO), (-FT_ONE, -FT_ONE), 1);
+        run_node_test((FT_ONE, -FT_ONE, -FT_TWO, FT_TWO), (FT_ONE, FT_ONE), 0);
     }
 }
