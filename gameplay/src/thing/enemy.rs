@@ -84,15 +84,19 @@ fn sound_flood(
 
 /// A_FaceTarget
 pub(crate) fn a_facetarget(actor: &mut MapObject) {
+    if !actor.target().is_some() {
+        return;
+    }
+
     actor.flags &= !(MapObjFlag::Ambush as u32);
 
     let xy = actor.xy;
-    let mut angle = actor.angle;
-    if let Some(target) = actor.target_mut() {
+    let mut angle = Angle::default();
+    if let Some(target) = actor.target() {
         angle = point_to_angle_2(xy, target.xy);
         if target.flags & MapObjFlag::Shadow as u32 == MapObjFlag::Shadow as u32 {
             // TODO: see how different this might be
-            actor.angle += Angle::new(((p_random() - p_random()) as u32) << 21);
+            angle += Angle::new(((p_random() - p_random()) << 21) as u32);
         }
     }
     actor.angle = angle;
@@ -122,12 +126,19 @@ pub(crate) fn a_chase(actor: &mut MapObject) {
         }
     }
 
-    if actor.movedir < MoveDir::None {
-        let delta = actor.angle - Angle::from(actor.movedir);
-        if delta > Angle::new(ANG45) {
-            actor.angle += Angle::new(ANG90);
-        } else if delta < Angle::new((0 as u32).wrapping_sub(ANG45)) {
-            actor.angle -= Angle::new(ANG90);
+    if actor.strafecount > 0 {
+        a_facetarget(actor);
+    } else {
+        if actor.movedir < MoveDir::None {
+            // TODO: Fix once I figure out what the heck this code is actually trying to do.
+            actor.angle = Angle::from(actor.movedir);
+            // Fix later once I figure out the math.
+            /*let delta = ((set_ang >> 29) as u8).wrapping_sub(actor.movedir as u8);
+            if (delta as i8) > 0 {
+                actor.angle += Angle::new(ANG45 - 1)
+            } else if (delta as i8) < 0 {
+                actor.angle -= Angle::new(ANG45 - 1)
+            }*/
         }
     }
 

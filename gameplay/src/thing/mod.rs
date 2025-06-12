@@ -167,6 +167,8 @@ pub struct MapObject {
     pub(crate) movedir: MoveDir,
     /// when 0, select a new dir
     pub(crate) movecount: i32,
+    /// monster strafing
+    pub(crate) strafecount: i16,
     /// The best slide move for a player object
     pub(crate) best_slide: BestSlide,
     /// Thing being chased/attacked (or NULL),
@@ -256,6 +258,7 @@ impl MapObject {
             tics: state.tics,
             movedir: MoveDir::North,
             movecount: 0,
+            strafecount: 0,
             best_slide: BestSlide::default(),
             reactiontime,
             threshold: 0,

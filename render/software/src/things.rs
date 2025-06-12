@@ -7,7 +7,7 @@ use gameplay::{
     point_to_angle_2,
 };
 use glam::Vec2;
-use math::{VecF2, fixed_t};
+use math::{FloatAngle, VecF2, fixed_t};
 use render_trait::{PixelBuffer, RenderTrait};
 
 use super::bsp::SoftwareRenderer;
@@ -168,9 +168,9 @@ impl SoftwareRenderer {
         let patch_index;
         let flip;
         if sprite_frame.rotate == 1 {
-            let angle = point_to_angle_2(player_mobj.xy, thing.xy).to_float_angle();
-            let rot = ((angle - thing.angle.to_float_angle() + FRAME_ROT_OFFSET).rad())
-                * FRAME_ROT_SELECT;
+            let angle = render_point_to_angle_2(player_mobj.xy, thing.xy);
+            let rot =
+                (angle - thing.angle.to_float_angle() + FRAME_ROT_OFFSET).rad() * FRAME_ROT_SELECT;
             patch_index = sprite_frame.lump[rot as u32 as usize] as u32 as usize;
             patch = pic_data.sprite_patch(patch_index);
             flip = sprite_frame.flip[rot as u32 as usize];
@@ -653,4 +653,9 @@ fn draw_masked_column(
         pixels.set_pixel(dc_x, y, &c);
         frac += fracstep;
     }
+}
+
+fn render_point_to_angle_2(v1: VecF2, v2: VecF2) -> FloatAngle {
+    let vec = (v1 - v2).to_vec_2();
+    FloatAngle::new(vec.y.atan2(vec.x))
 }

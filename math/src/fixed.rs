@@ -49,7 +49,7 @@ impl fixed_t {
     }
 
     pub const fn from_int(v: i32) -> Self {
-        fixed_t::new(v * 65536)
+        fixed_t::new(v << 16)
     }
 
     pub const fn new(v: i32) -> Self {

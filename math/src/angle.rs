@@ -1,7 +1,7 @@
 use std::ops::{Add, AddAssign, Shr, Sub, SubAssign};
 
 use crate::{
-    FRACBITS, FRACUNIT, FloatAngle, VecF2, fixed_t,
+    FRACBITS, FRACUNIT, FloatAngle, VecF2, bam_to_radian, fixed_t,
     trig::{COS_TABLE, SIN_TABLE},
 };
 
@@ -39,7 +39,7 @@ use crate::fixed_tables::finesine_source;
 
 impl Angle {
     pub const fn to_float_angle(self) -> FloatAngle {
-        FloatAngle::new((self.0 as f32 * 8.381_903e-8) * DEG_TO_RAD)
+        FloatAngle::new(bam_to_radian(self.0))
     }
 
     pub const fn from_int(v: i32) -> Self {
@@ -99,6 +99,14 @@ impl Add for Angle {
 
     fn add(self, rhs: Self) -> Self::Output {
         Angle::new(self.0.wrapping_add(rhs.0))
+    }
+}
+
+impl std::ops::Neg for Angle {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Angle::new(0) - self
     }
 }
 

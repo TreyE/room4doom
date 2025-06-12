@@ -17,8 +17,8 @@ use crate::thing::{BONUSADD, MapObjFlag, MapObject};
 use crate::tic_cmd::{LOOKDIRMAX, LOOKDIRMIN, TIC_CMD_BUTTONS, TicCmd};
 use crate::{GameMode, Skill};
 use math::{
-    ANG5, ANG90, ANG180, Angle, FINEANGLES, FINEMASK, FT_FOUR, FT_ONE, FT_TWO, FT_ZERO, VecF2,
-    bam_to_radian, fixed_t, fixed_to_float, p_random, point_to_angle_2,
+    ANG5, ANG90, ANG180, Angle, FINEANGLES, FINEMASK, FT_FOUR, FT_FOURTH, FT_ONE, FT_TWO, FT_ZERO,
+    VecF2, bam_to_radian, fixed_t, fixed_to_float, p_random, point_to_angle_2,
 };
 
 /// 16 pixels of bob
@@ -370,7 +370,7 @@ impl Player {
             let mobj = unsafe { &mut *mobj };
             let x = mobj.momxy.x;
             let y = mobj.momxy.y;
-            self.bob = x * x + y * y;
+            self.bob = x * x + y * y / FT_FOUR;
 
             if self.bob > MAX_BOB {
                 self.bob = MAX_BOB;
@@ -383,13 +383,13 @@ impl Player {
                     self.viewz = mobj.ceilingz - FT_FOUR;
                 }
 
-                self.viewz = mobj.z + self.viewheight;
+                return;
             }
 
             let mut bob = FT_ZERO;
             if self.head_bob {
                 let angle = Angle::new((FINEANGLES / 20 * level_time) & FINEMASK);
-                bob = self.bob / FT_TWO * angle.sin();
+                bob = (self.bob / FT_TWO) * angle.sin();
             }
 
             // move viewheight
@@ -408,9 +408,9 @@ impl Player {
                     }
                 }
 
-                if self.deltaviewheight > FT_ZERO {
-                    self.deltaviewheight += fixed_t::from_float(0.25);
-                    if self.deltaviewheight <= FT_ZERO {
+                if self.deltaviewheight != FT_ZERO {
+                    self.deltaviewheight += FT_FOURTH;
+                    if self.deltaviewheight == FT_ZERO {
                         self.deltaviewheight = FT_ONE;
                     }
                 }

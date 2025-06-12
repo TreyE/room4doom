@@ -220,7 +220,7 @@ impl MapObject {
         let mut angle = self.angle;
 
         if !accurate {
-            angle += Angle::from_int((p_random() - p_random()) << FUZZY_AIM_SHIFT);
+            angle += Angle::new(((p_random() - p_random()) << FUZZY_AIM_SHIFT) as u32);
         }
 
         if let Some(res) = bullet_slope {

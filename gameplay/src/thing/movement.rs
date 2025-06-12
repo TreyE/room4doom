@@ -18,8 +18,8 @@ use crate::level::map_defs::{BBox, LineDef, SlopeType};
 use crate::utilities::{BestSlide, Intercept, PortalZ, box_on_line_side, path_traverse};
 use crate::{MapObjKind, MapObject, MapPtr};
 use math::{
-    ANG45, ANG90, ANG180, Angle, FRACUNIT_DIV4, FT_EIGHT, FT_FOURTH, FT_ONE, FT_TWO, FT_ZERO,
-    VecF2, circle_circle_intersect, fixed_t, fixed_to_float, p_random, point_to_angle_2,
+    ANG45, ANG90, ANG180, ANG270, Angle, FRACUNIT_DIV4, FT_EIGHT, FT_FOURTH, FT_ONE, FT_TWO,
+    FT_ZERO, VecF2, circle_circle_intersect, fixed_t, fixed_to_float, p_random, point_to_angle_2,
 };
 
 use super::MapObjFlag;
@@ -144,10 +144,6 @@ impl MapObject {
 
     /// Doom function name `P_XYMovement`
     pub(crate) fn p_xy_movement(&mut self) {
-        if self.kind == MapObjKind::MT_PLAYER {
-            info!("Object momentum x: {}", self.momxy.x);
-            info!("Object momentum y: {}", self.momxy.y);
-        }
         if self.momxy.x == FT_ZERO && self.momxy.y == FT_ZERO {
             if self.flags & MapObjFlag::Skullfly as u32 != 0 {
                 self.flags &= !(MapObjFlag::Skullfly as u32);
@@ -174,8 +170,6 @@ impl MapObject {
         self.momxy.x = self.momxy.x.clamp(-MAXMOVE, MAXMOVE);
         self.momxy.y = self.momxy.y.clamp(-MAXMOVE, MAXMOVE);
 
-        info!("Object momentum x: {}", self.momxy.x);
-        info!("Object momentum y: {}", self.momxy.y);
         let mut xmove = self.momxy.x;
         let mut ymove = self.momxy.y;
         let mut ptryx;
@@ -906,8 +900,8 @@ impl MapObject {
 
         // try direct route
         if dirs[1] != MoveDir::None && dirs[2] != MoveDir::None {
-            self.movedir =
-                DIR_DIAGONALS[(((dy < FT_ZERO) as usize) << 1) + (dx > FT_ZERO) as usize];
+            self.movedir = DIR_DIAGONALS
+                [(((dy < FT_ZERO) as u32 as usize) << 1) + ((dx > FT_ZERO) as u32 as usize)];
             if self.movedir != turnaround && self.try_walk() {
                 return;
             }
@@ -1073,8 +1067,8 @@ impl From<MoveDir> for Angle {
             MoveDir::NorthWest => Angle::new(ANG90 + ANG45),
             MoveDir::West => Angle::new(ANG180),
             MoveDir::SouthWest => Angle::new(ANG180 + ANG45),
-            MoveDir::South => Angle::new(ANG180 + ANG90),
-            MoveDir::SouthEast => Angle::new(ANG180 + ANG90 + ANG45),
+            MoveDir::South => Angle::new(ANG270),
+            MoveDir::SouthEast => Angle::new(ANG270 + ANG45),
             _ => Angle::default(),
         }
     }
@@ -1098,9 +1092,6 @@ const DIR_DIAGONALS: [MoveDir; 4] = [
     MoveDir::SouthWest,
     MoveDir::SouthEast,
 ];
-
-const DIR_XSPEED: [f32; 8] = [1.0, 0.47, 0.0, -0.47, -1.0, -0.47, 0.0, 0.47];
-const DIR_YSPEED: [f32; 8] = [0.0, 0.47, 1.0, 0.47, 0.0, -0.47, -1.0, -0.47];
 
 const DIR_XFSPEED: [fixed_t; 8] = [
     FT_ONE,
