@@ -476,7 +476,9 @@ pub(crate) struct AimResult {
 }
 
 struct SubSectTraverse {
+    // Ratio - -1..1
     top_slope: fixed_t,
+    // Ratio - -1..1
     bot_slope: fixed_t,
     attack_range: fixed_t,
     shootz: fixed_t,
@@ -587,7 +589,6 @@ impl SubSectTraverse {
             if thing_bot_slope < self.bot_slope {
                 thing_bot_slope = self.bot_slope;
             }
-
             self.result = Some(AimResult {
                 aimslope: (thing_top_slope + thing_bot_slope) / FT_TWO,
                 line_target: thing.clone(),

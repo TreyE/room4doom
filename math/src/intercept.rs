@@ -1,4 +1,4 @@
-use crate::{FT_ZERO, VecF2, fixed_t, vec_f2::point_on_side};
+use crate::{FT_NEG_ZERO, FT_ONE, FT_ZERO, VecF2, fixed_t, vec_f2::point_on_side};
 use glam::Vec2;
 
 /// Used in path tracing for intercepts

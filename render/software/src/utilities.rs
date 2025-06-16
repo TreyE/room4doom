@@ -81,9 +81,8 @@ pub fn scale_from_view_angle(
     view_angle: FloatAngle,
     screen_width_half: f32,
 ) -> f32 {
-    let anglea: FloatAngle = FloatAngle::new(FRAC_PI_2 + (visangle.sub_other(view_angle)).rad());
-    let angleb: FloatAngle =
-        FloatAngle::new(FRAC_PI_2 + (visangle.sub_other(rw_normalangle)).rad());
+    let anglea: FloatAngle = FloatAngle::new(FRAC_PI_2 + visangle.sub_other(view_angle).rad());
+    let angleb: FloatAngle = FloatAngle::new(FRAC_PI_2 + visangle.sub_other(rw_normalangle).rad());
     let projection: f32 = screen_width_half;
     let num: f32 = projection * angleb.sin();
     let den: f32 = rw_distance * anglea.sin();

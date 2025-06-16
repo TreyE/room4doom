@@ -20,6 +20,7 @@ pub struct fixed_t(pub i32);
 
 const FRACBITS: i32 = 16;
 pub const FT_ZERO: fixed_t = fixed_t::new(0);
+pub const FT_NEG_ZERO: fixed_t = fixed_t::new(-0);
 pub const FT_FOURTH: fixed_t = fixed_t::new(1 << 14);
 pub const FT_ONE: fixed_t = fixed_t::from_int(1);
 pub const FT_TWO: fixed_t = fixed_t::from_int(2);

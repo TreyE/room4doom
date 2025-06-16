@@ -184,7 +184,7 @@ pub fn path_traverse(
 
     intercepts.sort();
 
-    traverse_intercepts(&mut intercepts, fixed_t::from_float(1.0), trav)
+    traverse_intercepts(&mut intercepts, FT_ONE, trav)
 }
 
 #[inline]
@@ -292,7 +292,7 @@ fn add_thing_intercept(
     let r = thing.radius;
     let a = math::point_to_angle_2(
         VecF2::new(FT_ZERO, FT_ZERO),
-        VecF2::new(trace.xy.y, trace.xy.y),
+        VecF2::new(trace.xy.y, -trace.xy.x),
     )
     .unit();
     let p = a * r;

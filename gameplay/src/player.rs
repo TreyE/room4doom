@@ -383,7 +383,7 @@ impl Player {
                     self.viewz = mobj.ceilingz - FT_FOUR;
                 }
 
-                return;
+                self.viewz = mobj.z + self.viewheight;
             }
 
             let mut bob = FT_ZERO;
@@ -394,6 +394,8 @@ impl Player {
 
             // move viewheight
             if self.player_state == PlayerState::Live {
+                self.viewheight = VIEWHEIGHT;
+                /*
                 self.viewheight += self.deltaviewheight;
 
                 if self.viewheight > VIEWHEIGHT {
@@ -408,12 +410,12 @@ impl Player {
                     }
                 }
 
-                if self.deltaviewheight != FT_ZERO {
+                if self.deltaviewheight > FT_ZERO {
                     self.deltaviewheight += FT_FOURTH;
                     if self.deltaviewheight == FT_ZERO {
                         self.deltaviewheight = FT_ONE;
                     }
-                }
+                }*/
             }
 
             self.viewz = mobj.z + self.viewheight + bob;
