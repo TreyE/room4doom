@@ -21,6 +21,8 @@ impl Trace {
 /// The lines can be pictured as arg1 being an infinite plane, and arg2 being
 /// the line to check if intersected by the plane.
 ///
+/// THIS IS CURRENTLY THE PROBLEM WITH COLLISION.
+///
 /// P_InterceptVector
 #[inline]
 pub fn intercept_vector(v2: Trace, v1: Trace) -> fixed_t {

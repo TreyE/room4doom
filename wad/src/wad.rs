@@ -323,7 +323,9 @@ impl WadData {
             let ofs = 8; //info.offset;
             let len = ofs + w * h * word_len;
             let mut line_groups = Vec::with_capacity(info.data.len() / word_len);
+            let mut line_blocks = Vec::with_capacity(w * h);
             for i in (ofs..len).step_by(2) {
+                let mut line_block = Vec::new();
                 let mut start =
                     i16::from_le_bytes([info.data[i], info.data[i + 1]]) as usize * word_len;
                 while start < info.data.len() {
@@ -332,8 +334,10 @@ impl WadData {
                     if line == -1 {
                         break;
                     }
+                    line_block.push(line);
                     start += word_len;
                 }
+                line_blocks.push(line_block);
             }
 
             return Some(WadBlockMap::new(
@@ -342,6 +346,7 @@ impl WadData {
                 info.read_i16(4),
                 info.read_i16(6),
                 line_groups,
+                line_blocks,
             ));
         }
         None

@@ -4,6 +4,7 @@ use std::time::Instant;
 
 use crate::level::map_defs::{BBox, LineDef, Node, Sector, Segment, SideDef, SlopeType, SubSector};
 use crate::log::info;
+use crate::thinker::{Thinker, ThinkerData};
 use crate::{LineDefFlags, MapPtr, PicData};
 use glam::Vec2;
 #[cfg(Debug)]
@@ -55,7 +56,7 @@ pub struct MapData {
     sidedefs: Vec<SideDef>,
     subsectors: Vec<SubSector>,
     segments: Vec<Segment>,
-    blockmap: Blockmap,
+    pub blockmap: Blockmap,
     reject: Vec<u8>,
     extents: MapExtents,
     nodes: Vec<Node>,
@@ -456,13 +457,32 @@ impl MapData {
 
     fn load_blockmap(&mut self, map_name: &str, wad: &WadData) {
         if let Some(wadblock) = wad.read_blockmap(map_name) {
+            let size = wadblock.columns as usize * wadblock.rows as usize;
+
             let mut blockmap = Blockmap {
                 x_origin: fixed_t::from_i16(wadblock.x_origin),
                 y_origin: fixed_t::from_i16(wadblock.y_origin),
                 columns: wadblock.columns as usize,
                 rows: wadblock.rows as usize,
                 lines: Vec::with_capacity(wadblock.line_indexes.len()),
+                blocklines: Vec::with_capacity(wadblock.columns as usize * wadblock.rows as usize),
+                thinglist: Vec::with_capacity(wadblock.columns as usize * wadblock.rows as usize),
             };
+
+            for _ in 1..size {
+                blockmap.thinglist.push(None);
+            }
+
+            for bl in wadblock.line_blocks {
+                let mut ld_list = Vec::new();
+                for bli in bl {
+                    if bli != -1 {
+                        let linedef = MapPtr::new(&mut self.linedefs[bli as usize]);
+                        ld_list.push(linedef);
+                    }
+                }
+                blockmap.blocklines.push(ld_list);
+            }
 
             for l in wadblock.line_indexes {
                 if l != 0 && l != -1 {
@@ -899,6 +919,67 @@ impl BSPTrace {
     #[inline]
     pub fn intercepted_subsectors(&self) -> &[u32] {
         &self.nodes
+    }
+}
+
+impl Blockmap {
+    pub fn offset(&self, x: fixed_t, y: fixed_t) -> Option<usize> {
+        let target_x = (x - self.x_origin) >> 23;
+        let target_y = (y - self.y_origin) >> 23;
+
+        if target_x < FT_ZERO || target_y < FT_ZERO {
+            return None;
+        }
+        Some((target_y.to_int() * self.columns as i32 + target_x.to_int()) as usize)
+    }
+
+    pub fn remove_thinker(&mut self, index: usize, thing: &mut Thinker) {
+        if thing.mobj().bm_next.is_none() && thing.mobj().bm_prev.is_none() {
+            self.thinglist[index] = None;
+        }
+
+        if let Some(next) = thing.mobj().bm_next {
+            unsafe { &mut *next }.mobj_mut().bm_prev = (*thing).mobj_mut().bm_prev;
+            // could also be null
+        }
+
+        if let Some(prev) = thing.mobj().bm_prev {
+            unsafe { &mut *prev }.mobj_mut().bm_next = thing.mobj_mut().bm_next;
+        } else {
+            self.thinglist[index] = thing.mobj().bm_next;
+        }
+
+        thing.mobj_mut().blockmap = (MapPtr::new(self), None);
+    }
+
+    pub fn add_thinker(&mut self, thing: &mut Thinker) {
+        if matches!(
+            (unsafe { &*thing }).data(),
+            ThinkerData::Free | ThinkerData::Remove
+        ) {
+            error!("add_thinker() tried to add a Thinker that was Free or Remove");
+            return;
+        }
+
+        let off = self.offset(thing.mobj().xy.x, thing.mobj().xy.y);
+
+        if off.is_none() {
+            return;
+        }
+
+        let offs = off.unwrap();
+
+        let t_list = *unsafe { self.thinglist.get_unchecked(offs) };
+
+        unsafe { &mut *thing }.mobj_mut().bm_prev = None;
+        unsafe { &mut *thing }.mobj_mut().bm_next = t_list; // could be null
+
+        if let Some(other) = t_list {
+            unsafe { &mut *other }.mobj_mut().bm_prev = Some(thing);
+        }
+
+        self.thinglist[offs] = Some(thing);
+        thing.mobj_mut().blockmap = (MapPtr::new(self), Some(offs));
     }
 }
 

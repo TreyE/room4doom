@@ -10,6 +10,7 @@ pub use movement::*;
 use sound_traits::SfxName;
 pub(crate) mod enemy;
 mod shooting;
+pub(crate) mod trace;
 
 use std::fmt::Debug;
 use std::ptr::null_mut;
@@ -21,12 +22,12 @@ use crate::level::Level;
 use crate::thinker::{Think, Thinker, ThinkerData};
 use crate::{MapPtr, Skill};
 use glam::Vec2;
-use log::{debug, error, trace, warn};
+use log::{debug, error, info, trace, warn};
 use wad::types::WadThing;
 
 use crate::doom_def::{ActFn, MAXPLAYERS, MTF_AMBUSH, ONCEILINGZ, ONFLOORZ, TICRATE, VIEWHEIGHT};
 use crate::info::{MOBJINFO, MapObjInfo, MapObjKind, STATES, SpriteNum, State, StateNum};
-use crate::level::map_defs::SubSector;
+use crate::level::map_defs::{Blockmap, SubSector};
 use crate::player::{Player, PlayerState};
 use crate::utilities::BestSlide;
 use math::{
@@ -139,7 +140,13 @@ pub struct MapObject {
     /// The subsector this object is currently in. When a map object is spawned
     /// `set_thing_position()` is called which then sets this to a valid
     /// subsector, making this safe in 99% of cases.
+    ///
     pub subsector: MapPtr<SubSector>,
+
+    pub(super) blockmap: (MapPtr<Blockmap>, Option<usize>),
+    pub(super) bm_next: Option<*mut Thinker>,
+    pub(super) bm_prev: Option<*mut Thinker>,
+
     /// The closest interval over all contacted Sectors.
     pub(crate) floorz: fixed_t,
     pub(crate) ceilingz: fixed_t,
@@ -269,6 +276,12 @@ impl MapObject {
             s_next: None,
             s_prev: None,
             subsector: unsafe { MapPtr::new_null() },
+            blockmap: (
+                unsafe { MapPtr::new(&mut (*level).map_data.blockmap) },
+                None,
+            ),
+            bm_next: None,
+            bm_prev: None,
             state,
             info,
             kind,
@@ -330,6 +343,22 @@ impl MapObject {
             }
             (*t).mobj_mut()
         })
+    }
+
+    pub fn shootable_lines(&self) -> ((VecF2, VecF2), (VecF2, VecF2)) {
+        let middlex = self.xy.x;
+        let middley = self.xy.y;
+        let radius = self.radius;
+
+        let line1 = (
+            VecF2::new(middlex - radius, middley + radius),
+            VecF2::new(middlex + radius, middley - radius),
+        );
+        let line2 = (
+            VecF2::new(middlex - radius, middley - radius),
+            VecF2::new(middlex + radius, middley + radius),
+        );
+        (line1, line2)
     }
 
     /// P_SpawnPlayer
@@ -525,7 +554,11 @@ impl MapObject {
         attack_range: fixed_t,
         level: &mut Level,
     ) {
-        let mobj = MapObject::spawn_map_object(x, y, z, MapObjKind::MT_PUFF, level);
+        info!("SPAWN PUFF");
+
+        let puff_z = z + fixed_t::new((p_random() - p_random()) << 10);
+
+        let mobj = MapObject::spawn_map_object(x, y, puff_z, MapObjKind::MT_PUFF, level);
         let mobj = unsafe { &mut *mobj };
         mobj.momz = fixed_t::from_int(1);
         mobj.tics -= p_random() & 3;
@@ -772,6 +805,23 @@ impl MapObject {
                 ss.sector.remove_from_thinglist(self.thinker_mut());
             }
         }
+        unsafe { self.unset_blockmap_position() }
+    }
+
+    pub(crate) unsafe fn unset_blockmap_position(&mut self) {
+        if (self.blockmap.1.is_some()) {
+            let mut bl = self.blockmap.0.clone();
+            unsafe {
+                bl.remove_thinker(self.blockmap.1.unwrap(), self.thinker_mut());
+            }
+        }
+    }
+
+    pub(crate) unsafe fn set_blockmap_position(&mut self) {
+        let mut bl = self.blockmap.0.clone();
+        unsafe {
+            bl.add_thinker(self.thinker_mut());
+        }
     }
 
     /// P_SetThingPosition, unlink the thing from the sector
@@ -785,6 +835,7 @@ impl MapObject {
             unsafe { subsector.sector.add_to_thinglist(self.thinker) }
         }
         self.subsector = subsector;
+        self.set_blockmap_position();
     }
 
     /// P_RemoveMobj

@@ -11,7 +11,6 @@ use math::{
     FT_MAX, FT_ONE, FT_ZERO, Trace, VecF2, circle_seg_collide, fixed_t, intercept_vector,
     point_on_side,
 };
-use sound_sdl2::point_to_angle_2;
 
 /// Returns -1 if the line runs through the box at all
 #[inline]
@@ -237,8 +236,8 @@ pub fn add_line_intercepts(
     intercepts: &mut Vec<Intercept>,
     earlyout: bool,
 ) -> bool {
-    let s1 = point_on_side(&trace.xy, &trace.dxy, &line.v1);
-    let s2 = point_on_side(&trace.xy, &trace.dxy, &line.v2);
+    let s1 = point_on_side(&line.v1, &line.v2, &trace.xy);
+    let s2 = point_on_side(&line.v1, &line.v2, &(trace.xy + trace.dxy));
 
     if s1 == s2 {
         // line isn't crossed
@@ -255,11 +254,11 @@ pub fn add_line_intercepts(
     if earlyout && frac < fixed_t::from_int(1) && line.backsector.is_none() {
         return false;
     }
-
-    if line.backsector.is_none() && frac < FT_ZERO {
-        return false;
-    }
-
+    /*
+        if line.backsector.is_none() && frac < FT_ZERO {
+            return false;
+        }
+    */
     // TODO: early out
     intercepts.push(Intercept {
         frac,

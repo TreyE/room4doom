@@ -2,6 +2,7 @@
 
 use std::f32::consts::{FRAC_PI_2, FRAC_PI_4};
 
+use log::info;
 use sound_traits::SfxName;
 
 use crate::doom_def::{MELEERANGE, MISSILERANGE, PowerType, WEAPON_INFO};
@@ -10,7 +11,12 @@ use crate::player::{Player, PsprNum};
 use crate::thing::MapObject;
 use crate::tic_cmd::TIC_CMD_BUTTONS;
 use crate::{MapObjKind, PlayerState, WeaponType};
-use math::{ANG45, ANG90, ANG180, Angle, FT_FOUR, FT_ONE, fixed_t, p_random, point_to_angle_2};
+
+use crate::thing::trace::AimTrace;
+use math::{
+    ANG45, ANG90, ANG180, Angle, FT_EIGHT, FT_FOUR, FT_ONE, FT_ZERO, fixed_t, p_random,
+    point_to_angle_2,
+};
 
 const LOWERSPEED: fixed_t = fixed_t::from_int(6);
 const RAISESPEED: fixed_t = fixed_t::from_int(6);
@@ -143,9 +149,22 @@ fn shoot_bullet(player: &mut Player) {
         mobj.start_sound(SfxName::Pistol);
         mobj.set_state(StateNum::PLAY_ATK2);
 
-        let mut bsp_trace = mobj.get_shoot_bsp_trace(distance);
-        let bullet_slope = mobj.bullet_slope(distance, &mut bsp_trace);
-        mobj.gun_shot(refire == 0, distance, bullet_slope, &mut bsp_trace);
+        let aim_trace = AimTrace::from_origin(
+            mobj.xy.x,
+            mobj.xy.y,
+            mobj.angle,
+            fixed_t::from_int(1024),
+            mobj.z + (mobj.height >> 1) + FT_EIGHT,
+        );
+
+        let aim_result = aim_trace.aim(mobj);
+        info!("{:?}", aim_result);
+        let b_slope = if let Some(aim) = aim_result {
+            aim.slope
+        } else {
+            FT_ZERO
+        };
+        mobj.player_gun_shot(refire == 0, fixed_t::from_int(1024), b_slope);
     }
 }
 

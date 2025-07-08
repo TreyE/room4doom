@@ -5,13 +5,13 @@ use math::{
     ANG90, Angle, FT_EIGHT, FT_FOUR, FT_TWO, FT_ZERO, VecF2, fixed_t, p_random, point_to_angle_2,
 };
 use sound_traits::SfxName;
-use std::f32::consts::FRAC_PI_2;
 
 use crate::doom_def::{FUZZY_AIM_SHIFT, MAXRADIUS, MELEERANGE};
 use crate::env::specials::shoot_special_line;
 use crate::info::{MOBJINFO, StateNum};
 use crate::level::map_data::BSPTrace;
 use crate::level::map_defs::LineDef;
+use crate::thing::trace::AimTrace;
 use crate::utilities::{Intercept, PortalZ, path_traverse};
 use crate::{LineDefFlags, MapObjKind, MapObject, MapPtr};
 
@@ -207,6 +207,38 @@ impl MapObject {
         self.angle = old_angle;
 
         bullet_slope
+    }
+
+    pub(crate) fn player_gun_shot(
+        &mut self,
+        accurate: bool,
+        distance: fixed_t,
+        bullet_slope: fixed_t,
+    ) {
+        let damage = 5.0 * (p_random() % 3 + 1) as f32;
+        let mut angle = self.angle;
+
+        if !accurate {
+            angle += Angle::new(((p_random() - p_random()) << FUZZY_AIM_SHIFT) as u32);
+        }
+
+        let aim_trace = AimTrace::from_origin(
+            self.xy.x,
+            self.xy.y,
+            angle,
+            distance,
+            self.z + (self.height >> 1) + FT_EIGHT,
+        );
+
+        let level = unsafe { self.level.as_mut() }.unwrap();
+
+        aim_trace.fire(
+            &self,
+            level,
+            bullet_slope,
+            &mut |x, y, z, d, l| MapObject::spawn_puff(x, y, z, d, l),
+            &mut |x, y, z, d| {},
+        );
     }
 
     pub(crate) fn gun_shot(

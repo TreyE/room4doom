@@ -28,6 +28,7 @@ pub const FT_FOUR: fixed_t = fixed_t::from_int(4);
 pub const FT_EIGHT: fixed_t = fixed_t::from_int(8);
 pub const FT_SIXTEEN: fixed_t = fixed_t::from_int(16);
 pub const FT_MAX: fixed_t = fixed_t::new(i32::MAX);
+pub const FT_MIN: fixed_t = fixed_t::new(i32::MIN);
 
 impl fixed_t {
     pub const fn to_float(self) -> f32 {
@@ -91,7 +92,7 @@ impl Add<fixed_t> for fixed_t {
 
     #[inline]
     fn add(self, rhs: Self) -> Self::Output {
-        fixed_t::new(self.0 + rhs.0)
+        fixed_t::new(self.0.wrapping_add(rhs.0))
     }
 }
 
@@ -100,7 +101,7 @@ impl Sub for fixed_t {
 
     #[inline]
     fn sub(self, rhs: Self) -> Self::Output {
-        fixed_t::new(self.0 - rhs.0)
+        fixed_t::new(self.0.wrapping_sub(rhs.0))
     }
 }
 
@@ -193,7 +194,7 @@ impl std::fmt::Display for fixed_t {
 
 #[cfg(test)]
 mod test {
-    use crate::FT_ONE;
+    use crate::{FT_FOUR, FT_ONE, FT_TWO};
 
     use super::fixed_t;
 
@@ -201,5 +202,13 @@ mod test {
     fn test_fmul() {
         let result = fixed_t::from_int(2) * FT_ONE;
         assert_eq!(result, fixed_t::from_int(2))
+    }
+
+    #[test]
+    fn test_fdiv() {
+        let result = fixed_t::from_int(2) / FT_ONE;
+        let result2 = fixed_t::from_int(2) / -FT_FOUR;
+        assert_eq!(result, FT_TWO);
+        assert_eq!(result2, fixed_t::from_float(-0.5))
     }
 }

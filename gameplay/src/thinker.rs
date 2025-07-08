@@ -6,6 +6,7 @@ use std::fmt::{self, Debug};
 use std::mem::{align_of, size_of};
 use std::ptr::{self, null_mut};
 
+use crate::MapObjFlag;
 use crate::env::ceiling::CeilingMove;
 use crate::env::doors::VerticalDoor;
 use crate::env::floor::FloorMove;
@@ -389,12 +390,24 @@ impl Debug for ThinkerData {
 /// container, or iterate over possible blank spots in memory.
 pub struct Thinker {
     prev: *mut Thinker,
-    next: *mut Thinker,
+    pub next: *mut Thinker,
     data: ThinkerData,
     func: fn(&mut Self, &mut Level) -> bool,
 }
 
 impl Thinker {
+    pub fn shootable(&self) -> Option<&MapObject> {
+        match &self.data {
+            ThinkerData::MapObject(obj) => {
+                if obj.flags & MapObjFlag::Shootable as u32 == 0 {
+                    return None;
+                }
+                Some(obj)
+            }
+            _ => None,
+        }
+    }
+
     pub fn should_remove(&self) -> bool {
         matches!(self.data, ThinkerData::Remove)
     }

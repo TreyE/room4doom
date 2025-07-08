@@ -15,7 +15,8 @@ mod fixed;
 mod fixed_tables;
 
 pub use fixed::{
-    FT_EIGHT, FT_FOUR, FT_FOURTH, FT_MAX, FT_NEG_ZERO, FT_ONE, FT_SIXTEEN, FT_TWO, FT_ZERO, fixed_t,
+    FT_EIGHT, FT_FOUR, FT_FOURTH, FT_MAX, FT_MIN, FT_NEG_ZERO, FT_ONE, FT_SIXTEEN, FT_TWO, FT_ZERO,
+    fixed_t,
 };
 
 mod vec_f2;

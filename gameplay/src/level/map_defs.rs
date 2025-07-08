@@ -455,13 +455,15 @@ pub struct Node {
     pub children: [u32; 2],
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Blockmap {
     pub x_origin: fixed_t,
     pub y_origin: fixed_t,
     pub columns: usize,
     pub rows: usize,
     pub lines: Vec<MapPtr<LineDef>>,
+    pub blocklines: Vec<Vec<MapPtr<LineDef>>>,
+    pub thinglist: Vec<Option<*mut Thinker>>,
 }
 
 #[cfg(test)]

@@ -1,4 +1,7 @@
-use std::ops::{Add, AddAssign, Shr, Sub, SubAssign};
+use std::{
+    ops::{Add, AddAssign, Shr, Sub, SubAssign},
+    sync::OnceLock,
+};
 
 use crate::{
     FRACBITS, FRACUNIT, FloatAngle, VecF2, bam_to_radian, fixed_t,
@@ -18,9 +21,28 @@ pub const FINEMASK: u32 = FINEANGLES - 1;
 
 pub const ANG1: u32 = ANG45 / 45;
 
+const FINESINE_ENTRIES: u32 = (5 * FINEANGLES / 4);
+
 const DEG_TO_RAD: f32 = std::f32::consts::PI / 180.0;
 
-use crate::fixed_tables::finesine_source;
+static FINESIN: OnceLock<[fixed_t; FINESINE_ENTRIES as usize]> = OnceLock::new();
+
+fn init_fine_sine() -> [fixed_t; FINESINE_ENTRIES as usize] {
+    let mut result: [fixed_t; FINESINE_ENTRIES as usize] =
+        [fixed_t::new(0); FINESINE_ENTRIES as usize];
+
+    for i in 0..(5 * FINEANGLES / 4) {
+        let a = ((i as f64 + 0.5) * std::f64::consts::PI * 2.0) / (FINEANGLES as f64);
+        let t = (a.sin() * (65536 as f64)) as i32;
+        result[i as usize] = fixed_t::new(t);
+    }
+
+    result
+}
+
+fn get_fine_sin() -> &'static [fixed_t; FINESINE_ENTRIES as usize] {
+    FINESIN.get_or_init(|| init_fine_sine())
+}
 
 /*
 
@@ -64,13 +86,23 @@ impl Angle {
     }
 
     #[inline]
+    pub fn finesin(&self) -> fixed_t {
+        get_fine_sin()[(self.0 >> 19) as usize]
+    }
+
+    #[inline]
     pub fn sin(&self) -> fixed_t {
-        fixed_t::new(finesine_source[(self.0 >> 19) as usize])
+        get_fine_sin()[(self.0 >> 19) as usize]
+    }
+
+    #[inline]
+    pub fn finecos(&self) -> fixed_t {
+        get_fine_sin()[((self.0 >> 19) + 2048) as usize]
     }
 
     #[inline]
     pub fn cos(&self) -> fixed_t {
-        fixed_t::new(finesine_source[((self.0 >> 19) + 2048) as usize])
+        get_fine_sin()[((self.0 >> 19) + 2048) as usize]
     }
 
     #[inline(always)]

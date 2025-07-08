@@ -670,6 +670,7 @@ pub struct WadBlockMap {
     /// offset in to this array. The number at that location is then the
     /// index number in to the linedefs array.
     pub line_indexes: Vec<i16>,
+    pub line_blocks: Vec<Vec<i16>>,
 }
 
 impl WadBlockMap {
@@ -679,6 +680,7 @@ impl WadBlockMap {
         width: i16,
         height: i16,
         lines: Vec<i16>,
+        line_blocks: Vec<Vec<i16>>,
     ) -> WadBlockMap {
         WadBlockMap {
             x_origin,
@@ -686,6 +688,7 @@ impl WadBlockMap {
             columns: width,
             rows: height,
             line_indexes: lines,
+            line_blocks,
         }
     }
 }
