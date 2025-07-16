@@ -580,7 +580,7 @@ impl MapObject {
         damage: i32,
         level: &mut Level,
     ) {
-        z += fixed_t::from_int((p_random() - p_random()) / 64);
+        z += fixed_t::new((p_random() - p_random()) << 10);
         let mobj = MapObject::spawn_map_object(x, y, z, MapObjKind::MT_BLOOD, level);
         let mobj = unsafe { &mut *mobj };
         mobj.momz = fixed_t::from_int(2);

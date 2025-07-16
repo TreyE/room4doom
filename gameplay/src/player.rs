@@ -217,7 +217,7 @@ impl Player {
             mobj: None,
             attacker: None,
 
-            viewheight: fixed_t::from_int(41),
+            viewheight: VIEWHEIGHT,
             deltaviewheight: FT_ONE,
             bob: FT_ONE,
             onground: true,
@@ -494,8 +494,8 @@ impl Player {
             self.psprites[position].tics = state.tics;
 
             if state.misc1 != 0 {
-                self.psprites[position].sx = fixed_t::new(state.misc1);
-                self.psprites[position].sy = fixed_t::new(state.misc2);
+                self.psprites[position].sx = fixed_t::from_int(state.misc1);
+                self.psprites[position].sy = fixed_t::from_int(state.misc2);
             }
 
             if let ActFn::P(func) = state.action {

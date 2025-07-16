@@ -145,6 +145,8 @@ pub(crate) fn a_raise(player: &mut Player, pspr: &mut PspDef) {
 fn shoot_bullet(player: &mut Player) {
     let distance = MISSILERANGE;
     let refire = player.refire;
+    let view_z = player.viewz;
+    info!("Player aim start: {:?}", view_z);
     if let Some(mobj) = player.mobj_mut() {
         mobj.start_sound(SfxName::Pistol);
         mobj.set_state(StateNum::PLAY_ATK2);
@@ -154,17 +156,18 @@ fn shoot_bullet(player: &mut Player) {
             mobj.xy.y,
             mobj.angle,
             fixed_t::from_int(1024),
-            mobj.z + (mobj.height >> 1) + FT_EIGHT,
+            view_z,
         );
 
         let aim_result = aim_trace.aim(mobj);
-        info!("{:?}", aim_result);
         let b_slope = if let Some(aim) = aim_result {
             aim.slope
         } else {
             FT_ZERO
         };
-        mobj.player_gun_shot(refire == 0, fixed_t::from_int(1024), b_slope);
+
+        info!("Player aim result: {:?}", b_slope);
+        mobj.player_gun_shot(refire == 0, fixed_t::from_int(1024), b_slope, view_z);
     }
 }
 

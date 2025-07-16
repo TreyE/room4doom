@@ -930,7 +930,7 @@ impl Blockmap {
         if target_x < FT_ZERO || target_y < FT_ZERO {
             return None;
         }
-        Some((target_y.to_int() * self.columns as i32 + target_x.to_int()) as usize)
+        Some((target_y.0 * self.columns as i32 + target_x.0) as usize)
     }
 
     pub fn remove_thinker(&mut self, index: usize, thing: &mut Thinker) {

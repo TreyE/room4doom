@@ -2,10 +2,8 @@
 //!
 //! Almost all of the methods here are on `MapObject`.
 
-use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 use std::ptr;
 
-use glam::Vec2;
 use log::{debug, error, info};
 
 use crate::doom_def::{FLOATSPEED, USERANGE, VIEWHEIGHT};
@@ -18,8 +16,9 @@ use crate::level::map_defs::{BBox, LineDef, SlopeType};
 use crate::utilities::{BestSlide, Intercept, PortalZ, box_on_line_side, path_traverse};
 use crate::{MapObjKind, MapObject, MapPtr};
 use math::{
-    ANG45, ANG90, ANG180, ANG270, Angle, FRACUNIT_DIV4, FT_EIGHT, FT_FOURTH, FT_ONE, FT_TWO,
-    FT_ZERO, VecF2, circle_circle_intersect, fixed_t, fixed_to_float, p_random, point_to_angle_2,
+    ANG45, ANG90, ANG180, ANG270, Angle, FRACUNIT_DIV4, FT_EIGHT, FT_FOURTH, FT_MAX, FT_MIN,
+    FT_ONE, FT_TWO, FT_ZERO, VecF2, circle_circle_intersect, fixed_t, fixed_to_float, p_random,
+    point_to_angle_2,
 };
 
 use super::MapObjFlag;
@@ -36,7 +35,6 @@ pub const PT_EARLYOUT: i32 = 4;
 
 /// The pupose of this struct is to record the highest and lowest points in a
 /// subsector. When a mob crosses a seg it may be between floor/ceiling heights.
-#[derive(Default)]
 pub struct SubSectorMinMax {
     /// If "floatok" true, move would be ok
     /// if within "tmfloorz - tmceilingz".
@@ -46,6 +44,19 @@ pub struct SubSectorMinMax {
     max_dropoff: fixed_t,
     sky_line: Option<MapPtr<LineDef>>,
     spec_hits: Vec<MapPtr<LineDef>>,
+}
+
+impl Default for SubSectorMinMax {
+    fn default() -> Self {
+        SubSectorMinMax {
+            floatok: false,
+            min_floor_z: FT_MIN,
+            max_ceil_z: FT_MAX,
+            max_dropoff: FT_ZERO,
+            sky_line: None,
+            spec_hits: Vec::new(),
+        }
+    }
 }
 
 impl MapObject {

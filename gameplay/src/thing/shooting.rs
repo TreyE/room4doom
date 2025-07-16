@@ -1,6 +1,7 @@
 //! Shooting and aiming.
 #[cfg(feature = "hprof")]
 use coarse_prof::profile;
+use log::info;
 use math::{
     ANG90, Angle, FT_EIGHT, FT_FOUR, FT_TWO, FT_ZERO, VecF2, fixed_t, p_random, point_to_angle_2,
 };
@@ -13,7 +14,7 @@ use crate::level::map_data::BSPTrace;
 use crate::level::map_defs::LineDef;
 use crate::thing::trace::AimTrace;
 use crate::utilities::{Intercept, PortalZ, path_traverse};
-use crate::{LineDefFlags, MapObjKind, MapObject, MapPtr};
+use crate::{Level, LineDefFlags, MapObjKind, MapObject, MapPtr};
 
 use super::{MapObjFlag, PT_ADDLINES, PT_ADDTHINGS};
 
@@ -214,21 +215,21 @@ impl MapObject {
         accurate: bool,
         distance: fixed_t,
         bullet_slope: fixed_t,
+        shootz: fixed_t,
     ) {
-        let damage = 5.0 * (p_random() % 3 + 1) as f32;
+        let damage = (5.0 * (p_random() % 3 + 1) as f32) as i32;
         let mut angle = self.angle;
+
+        fn hit_with_shot(x: fixed_t, y: fixed_t, z: fixed_t, d: fixed_t, dam: i32, l: &mut Level) {
+            MapObject::spawn_blood(x, y, z, dam, l);
+        }
 
         if !accurate {
             angle += Angle::new(((p_random() - p_random()) << FUZZY_AIM_SHIFT) as u32);
         }
 
-        let aim_trace = AimTrace::from_origin(
-            self.xy.x,
-            self.xy.y,
-            angle,
-            distance,
-            self.z + (self.height >> 1) + FT_EIGHT,
-        );
+        info!("Player shoot start: {:?}", shootz);
+        let aim_trace = AimTrace::from_origin(self.xy.x, self.xy.y, angle, distance, shootz);
 
         let level = unsafe { self.level.as_mut() }.unwrap();
 
@@ -236,8 +237,9 @@ impl MapObject {
             &self,
             level,
             bullet_slope,
+            damage,
             &mut |x, y, z, d, l| MapObject::spawn_puff(x, y, z, d, l),
-            &mut |x, y, z, d| {},
+            &mut |x, y, z, d, dm, l| hit_with_shot(x, y, z, d, dm, l),
         );
     }
 

@@ -10,20 +10,6 @@ use crate::{
     thinker::Thinker,
 };
 
-pub(crate) struct AimResult {
-    pub aimslope: fixed_t,
-    pub line_target: MapPtr<MapObject>,
-}
-
-pub(crate) struct BlockmapTraverse {
-    top_slope: fixed_t,
-    // Ratio - -1..1
-    bot_slope: fixed_t,
-    attack_range: fixed_t,
-    shootz: fixed_t,
-    result: Option<AimResult>,
-}
-
 #[derive(Debug)]
 pub struct AimTrace {
     pub(crate) start: VecF2,
@@ -189,6 +175,7 @@ impl AimTrace {
     pub(crate) fn aim(&self, shooter: &mut MapObject) -> Option<AimHit> {
         let blockmap = &shooter.level().map_data.blockmap;
         let intercepts = self.intercepts(&blockmap, shooter);
+        let origin_sector = shooter.subsector.sector.inner;
         let mut aim_hit = None;
 
         let mut tl = TraverseLimits {
@@ -219,15 +206,15 @@ impl AimTrace {
                         }
 
                         let new_max_slope = if s1c >= s2c {
-                            (self.shoot_z - s2c) / (self.distance * f.frac)
+                            (s2c - self.shoot_z) / (self.distance * f.frac)
                         } else {
-                            (self.shoot_z - s1c) / (self.distance * f.frac)
+                            (s1c - self.shoot_z) / (self.distance * f.frac)
                         };
 
                         let new_min_slope = if s1f >= s2f {
-                            (self.shoot_z - s1f) / (self.distance * f.frac)
+                            (s1f - self.shoot_z) / (self.distance * f.frac)
                         } else {
-                            (self.shoot_z - s2f) / (self.distance * f.frac)
+                            (s2f - self.shoot_z) / (self.distance * f.frac)
                         };
 
                         if tl.max_slope > new_max_slope {
@@ -247,7 +234,7 @@ impl AimTrace {
                         let top_z = shootable.z + shootable.height;
                         let bot_z = shootable.z;
                         let z_attempt = (top_z + bot_z) / FT_TWO;
-                        let slope = (self.shoot_z - z_attempt) / (self.distance * f.frac);
+                        let slope = (z_attempt - self.shoot_z) / (self.distance * f.frac);
                         let hit_dist = self.distance * f.frac;
                         let hit_loc_x = self.start.x + self.angle.finecos() * hit_dist;
                         let hit_loc_y = self.start.y + self.angle.finesin() * hit_dist;
@@ -274,19 +261,20 @@ impl AimTrace {
         shooter: &MapObject,
         level: &mut Level,
         slope: fixed_t,
+        damage: i32,
         onhit_wall: &mut F,
         onhit_thing: &mut G,
     ) -> ()
     where
         F: FnMut(fixed_t, fixed_t, fixed_t, fixed_t, &mut Level),
-        G: FnMut(fixed_t, fixed_t, fixed_t, fixed_t),
+        G: FnMut(fixed_t, fixed_t, fixed_t, fixed_t, i32, &mut Level),
     {
         let blockmap = &shooter.level().map_data.blockmap;
         let intercepts = self.intercepts(&blockmap, shooter);
 
         let mut tl = TraverseLimits {
-            max_slope: slope,
-            min_slope: slope,
+            max_slope: fixed_t::from_float(100.0 / 160.0),
+            min_slope: fixed_t::from_float(-100.0 / 160.0),
         };
 
         let _ = intercepts
@@ -327,15 +315,15 @@ impl AimTrace {
                         }
 
                         let new_max_slope = if s1c >= s2c {
-                            (self.shoot_z - s2c) / (self.distance * f.frac)
+                            (s2c - self.shoot_z) / (self.distance * f.frac)
                         } else {
-                            (self.shoot_z - s1c) / (self.distance * f.frac)
+                            (s1c - self.shoot_z) / (self.distance * f.frac)
                         };
 
                         let new_min_slope = if s1f >= s2f {
-                            (self.shoot_z - s1f) / (self.distance * f.frac)
+                            (s1f - self.shoot_z) / (self.distance * f.frac)
                         } else {
-                            (self.shoot_z - s2f) / (self.distance * f.frac)
+                            (s2f - self.shoot_z) / (self.distance * f.frac)
                         };
 
                         if tl.max_slope > new_max_slope {
@@ -344,7 +332,6 @@ impl AimTrace {
                         if tl.min_slope < new_min_slope {
                             tl.min_slope = new_min_slope;
                         }
-
                         if tl.min_slope >= tl.max_slope {
                             let hit_dist = self.distance * f.frac;
                             let hit_loc_x = self.start.x + self.angle.finecos() * hit_dist;
@@ -373,7 +360,14 @@ impl AimTrace {
                         if z_attempt > bot_z && z_attempt < top_z {
                             let hit_loc_x = self.start.x + self.angle.finecos() * hit_dist;
                             let hit_loc_y = self.start.y + self.angle.finesin() * hit_dist;
-                            onhit_thing(hit_loc_x, hit_loc_y, z_attempt, self.distance);
+                            onhit_thing(
+                                hit_loc_x,
+                                hit_loc_y,
+                                z_attempt,
+                                self.distance,
+                                damage,
+                                level,
+                            );
                             return false;
                         }
                     }
