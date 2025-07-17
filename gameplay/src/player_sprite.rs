@@ -154,6 +154,8 @@ fn shoot_bullet(player: &mut Player) {
         let aim_trace = AimTrace::from_origin(
             mobj.xy.x,
             mobj.xy.y,
+            fixed_t::from_float(-100.0 / 160.0),
+            fixed_t::from_float(100.0 / 160.0),
             mobj.angle,
             fixed_t::from_int(1024),
             view_z,
@@ -183,15 +185,31 @@ pub(crate) fn a_firepistol(player: &mut Player, _pspr: &mut PspDef) {
 pub(crate) fn a_fireshotgun(player: &mut Player, _pspr: &mut PspDef) {
     let distance = MISSILERANGE;
 
+    let view_z = player.viewz;
+
     if let Some(mobj) = player.mobj_mut() {
         mobj.start_sound(SfxName::Shotgn);
         mobj.set_state(StateNum::PLAY_ATK2);
 
-        let mut bsp_trace = mobj.get_shoot_bsp_trace(distance);
-        let bullet_slope = mobj.bullet_slope(distance, &mut bsp_trace);
+        let aim_trace = AimTrace::from_origin(
+            mobj.xy.x,
+            mobj.xy.y,
+            fixed_t::from_float(-100.0 / 160.0),
+            fixed_t::from_float(100.0 / 160.0),
+            mobj.angle,
+            fixed_t::from_int(1024),
+            view_z,
+        );
+
+        let aim_result = aim_trace.aim(mobj);
+        let b_slope = if let Some(aim) = aim_result {
+            aim.slope
+        } else {
+            FT_ZERO
+        };
 
         for _ in 0..7 {
-            mobj.gun_shot(false, distance, bullet_slope.clone(), &mut bsp_trace);
+            mobj.player_gun_shot(false, distance, b_slope, view_z);
         }
     }
 

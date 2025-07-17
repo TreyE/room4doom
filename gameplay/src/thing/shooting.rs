@@ -219,27 +219,45 @@ impl MapObject {
     ) {
         let damage = (5.0 * (p_random() % 3 + 1) as f32) as i32;
         let mut angle = self.angle;
-
-        fn hit_with_shot(x: fixed_t, y: fixed_t, z: fixed_t, d: fixed_t, dam: i32, l: &mut Level) {
+        fn hit_with_shot(
+            x: fixed_t,
+            y: fixed_t,
+            z: fixed_t,
+            d: fixed_t,
+            dam: i32,
+            shooter: Option<&mut MapObject>,
+            thing: &mut MapObject,
+            l: &mut Level,
+        ) {
             MapObject::spawn_blood(x, y, z, dam, l);
+            if dam > 0 {
+                thing.p_take_damage(None, shooter, false, dam);
+            }
         }
 
         if !accurate {
             angle += Angle::new(((p_random() - p_random()) << FUZZY_AIM_SHIFT) as u32);
         }
 
-        info!("Player shoot start: {:?}", shootz);
-        let aim_trace = AimTrace::from_origin(self.xy.x, self.xy.y, angle, distance, shootz);
+        let aim_trace = AimTrace::from_origin(
+            self.xy.x,
+            self.xy.y,
+            fixed_t::from_float(-100.0 / 160.0),
+            fixed_t::from_float(100.0 / 160.0),
+            angle,
+            distance,
+            shootz,
+        );
 
         let level = unsafe { self.level.as_mut() }.unwrap();
 
         aim_trace.fire(
-            &self,
+            self,
             level,
             bullet_slope,
             damage,
             &mut |x, y, z, d, l| MapObject::spawn_puff(x, y, z, d, l),
-            &mut |x, y, z, d, dm, l| hit_with_shot(x, y, z, d, dm, l),
+            &mut |x, y, z, d, dm, s, t, l| hit_with_shot(x, y, z, d, dm, s, t, l),
         );
     }
 

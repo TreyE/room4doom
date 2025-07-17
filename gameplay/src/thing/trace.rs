@@ -14,6 +14,8 @@ use crate::{
 pub struct AimTrace {
     pub(crate) start: VecF2,
     pub(crate) end: VecF2,
+    pub(crate) min_aim_slope: fixed_t,
+    pub(crate) max_aim_slope: fixed_t,
     pub(crate) distance: fixed_t,
     pub(crate) angle: Angle,
     pub(crate) shoot_z: fixed_t,
@@ -50,6 +52,8 @@ impl AimTrace {
     pub(crate) fn from_origin(
         x: fixed_t,
         y: fixed_t,
+        min_aim: fixed_t,
+        max_aim: fixed_t,
         angle: Angle,
         distance: fixed_t,
         shoot_z: fixed_t,
@@ -62,6 +66,8 @@ impl AimTrace {
             angle,
             end: VecF2::new(end_location_x, end_location_y),
             shoot_z,
+            min_aim_slope: min_aim,
+            max_aim_slope: max_aim,
         }
     }
 
@@ -175,12 +181,11 @@ impl AimTrace {
     pub(crate) fn aim(&self, shooter: &mut MapObject) -> Option<AimHit> {
         let blockmap = &shooter.level().map_data.blockmap;
         let intercepts = self.intercepts(&blockmap, shooter);
-        let origin_sector = shooter.subsector.sector.inner;
         let mut aim_hit = None;
 
         let mut tl = TraverseLimits {
-            max_slope: fixed_t::from_float(100.0 / 160.0),
-            min_slope: fixed_t::from_float(-100.0 / 160.0),
+            max_slope: self.max_aim_slope,
+            min_slope: self.min_aim_slope,
         };
 
         let _ = intercepts
@@ -233,7 +238,11 @@ impl AimTrace {
                     if let Some(shootable) = the_thing.shootable() {
                         let top_z = shootable.z + shootable.height;
                         let bot_z = shootable.z;
-                        let z_attempt = (top_z + bot_z) / FT_TWO;
+                        let z_attempt = if top_z >= self.shoot_z && bot_z <= self.shoot_z {
+                            self.shoot_z
+                        } else {
+                            (top_z + bot_z) / FT_TWO
+                        };
                         let slope = (z_attempt - self.shoot_z) / (self.distance * f.frac);
                         let hit_dist = self.distance * f.frac;
                         let hit_loc_x = self.start.x + self.angle.finecos() * hit_dist;
@@ -258,7 +267,7 @@ impl AimTrace {
 
     pub(crate) fn fire<F, G>(
         &self,
-        shooter: &MapObject,
+        shooter: &mut MapObject,
         level: &mut Level,
         slope: fixed_t,
         damage: i32,
@@ -267,14 +276,23 @@ impl AimTrace {
     ) -> ()
     where
         F: FnMut(fixed_t, fixed_t, fixed_t, fixed_t, &mut Level),
-        G: FnMut(fixed_t, fixed_t, fixed_t, fixed_t, i32, &mut Level),
+        G: FnMut(
+            fixed_t,
+            fixed_t,
+            fixed_t,
+            fixed_t,
+            i32,
+            Option<&mut MapObject>,
+            &mut MapObject,
+            &mut Level,
+        ),
     {
         let blockmap = &shooter.level().map_data.blockmap;
         let intercepts = self.intercepts(&blockmap, shooter);
 
         let mut tl = TraverseLimits {
-            max_slope: fixed_t::from_float(100.0 / 160.0),
-            min_slope: fixed_t::from_float(-100.0 / 160.0),
+            max_slope: self.max_aim_slope,
+            min_slope: self.min_aim_slope,
         };
 
         let _ = intercepts
@@ -351,12 +369,13 @@ impl AimTrace {
                         }
                     }
                 } else if let Some(thing) = f.thing {
-                    let the_thing = unsafe { thing.as_ref() }.unwrap();
+                    let the_thing = unsafe { thing.as_mut() }.unwrap();
                     if let Some(shootable) = the_thing.shootable() {
                         let top_z = shootable.z + shootable.height;
                         let bot_z = shootable.z;
                         let hit_dist = self.distance * f.frac;
                         let z_attempt = self.shoot_z + (slope * hit_dist);
+                        let target_thing = the_thing.mobj_mut();
                         if z_attempt > bot_z && z_attempt < top_z {
                             let hit_loc_x = self.start.x + self.angle.finecos() * hit_dist;
                             let hit_loc_y = self.start.y + self.angle.finesin() * hit_dist;
@@ -366,6 +385,8 @@ impl AimTrace {
                                 z_attempt,
                                 self.distance,
                                 damage,
+                                Some(shooter),
+                                target_thing,
                                 level,
                             );
                             return false;

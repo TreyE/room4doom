@@ -20,7 +20,7 @@ pub static MAXHEALTH: i32 = 100;
 pub static VIEWHEIGHT: fixed_t = fixed_t::from_int(41);
 pub static MAXRADIUS: fixed_t = fixed_t::from_float(32.0);
 pub const USERANGE: fixed_t = fixed_t::from_int(64);
-pub const FUZZY_AIM_SHIFT: u32 = 20;
+pub const FUZZY_AIM_SHIFT: u32 = 18;
 
 /// DOOM version
 pub static DOOM_VERSION: u8 = 109;
