@@ -113,7 +113,7 @@ impl SubAssign for fixed_t {
 
 impl AddAssign for fixed_t {
     fn add_assign(&mut self, rhs: Self) {
-        self.0 = self.0 + rhs.0;
+        self.0 = self.0.wrapping_add(rhs.0);
     }
 }
 

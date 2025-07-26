@@ -14,8 +14,8 @@ use crate::{MapObjKind, PlayerState, WeaponType};
 
 use crate::thing::trace::AimTrace;
 use math::{
-    ANG45, ANG90, ANG180, Angle, FT_EIGHT, FT_FOUR, FT_ONE, FT_ZERO, fixed_t, p_random,
-    point_to_angle_2,
+    ANG45, ANG90, ANG180, Angle, FT_EIGHT, FT_FOUR, FT_FOURTH, FT_MAX, FT_MIN, FT_ONE, FT_ZERO,
+    fixed_t, p_random, point_to_angle_2,
 };
 
 const LOWERSPEED: fixed_t = fixed_t::from_int(6);
@@ -146,7 +146,6 @@ fn shoot_bullet(player: &mut Player) {
     let distance = MISSILERANGE;
     let refire = player.refire;
     let view_z = player.viewz;
-    info!("Player aim start: {:?}", view_z);
     if let Some(mobj) = player.mobj_mut() {
         mobj.start_sound(SfxName::Pistol);
         mobj.set_state(StateNum::PLAY_ATK2);
@@ -154,11 +153,12 @@ fn shoot_bullet(player: &mut Player) {
         let aim_trace = AimTrace::from_origin(
             mobj.xy.x,
             mobj.xy.y,
-            fixed_t::from_float(-100.0 / 160.0),
-            fixed_t::from_float(100.0 / 160.0),
+            FT_MIN,
+            FT_MAX,
             mobj.angle,
             fixed_t::from_int(1024),
             view_z,
+            false,
         );
 
         let aim_result = aim_trace.aim(mobj);
@@ -199,6 +199,7 @@ pub(crate) fn a_fireshotgun(player: &mut Player, _pspr: &mut PspDef) {
             mobj.angle,
             fixed_t::from_int(1024),
             view_z,
+            false,
         );
 
         let aim_result = aim_trace.aim(mobj);

@@ -3,7 +3,8 @@
 use coarse_prof::profile;
 use log::info;
 use math::{
-    ANG90, Angle, FT_EIGHT, FT_FOUR, FT_TWO, FT_ZERO, VecF2, fixed_t, p_random, point_to_angle_2,
+    ANG90, Angle, FT_EIGHT, FT_FOUR, FT_MAX, FT_MIN, FT_TWO, FT_ZERO, VecF2, fixed_t, p_random,
+    point_to_angle_2,
 };
 use sound_traits::SfxName;
 
@@ -12,7 +13,7 @@ use crate::env::specials::shoot_special_line;
 use crate::info::{MOBJINFO, StateNum};
 use crate::level::map_data::BSPTrace;
 use crate::level::map_defs::LineDef;
-use crate::thing::trace::AimTrace;
+use crate::thing::trace::{AimHit, AimTrace, SightTrace};
 use crate::utilities::{Intercept, PortalZ, path_traverse};
 use crate::{Level, LineDefFlags, MapObjKind, MapObject, MapPtr};
 
@@ -64,8 +65,8 @@ impl MapObject {
         // set up traverser
         let mut aim_traverse = SubSectTraverse::new(
             // can't shoot outside view angles
-            fixed_t::from_float(100.0 / 160.0),
-            fixed_t::from_float(-100.0 / 160.0),
+            FT_MAX,
+            FT_MIN,
             //
             distance,
             self.z + (self.height >> 1) + fixed_t::from_int(8),
@@ -94,29 +95,88 @@ impl MapObject {
         damage: i32,
         bsp_trace: &mut BSPTrace,
     ) {
-        let mut shoot_traverse = ShootTraverse::new(
+        let aim_trace = AimTrace::from_origin(
+            self.xy.x,
+            self.xy.y,
             aim_slope,
+            aim_slope,
+            angle,
             attack_range,
-            damage,
             self.z + (self.height >> 1) + fixed_t::from_int(8),
-            bsp_trace.origin,
-            angle.unit() * (bsp_trace.endpoint - bsp_trace.origin).length(),
-            self.level().sky_num,
-        );
-
-        let xy2 = VecF2::new(
-            self.xy.x + attack_range * angle.cos(),
-            self.xy.y + attack_range * angle.sin(),
+            false,
         );
 
         let level = unsafe { &mut *self.level };
-        path_traverse(
-            self.xy,
-            xy2,
-            PT_ADDLINES | PT_ADDTHINGS,
+
+        fn hit_with_shot(
+            x: fixed_t,
+            y: fixed_t,
+            z: fixed_t,
+            d: fixed_t,
+            dam: i32,
+            shooter: Option<&mut MapObject>,
+            thing: &mut MapObject,
+            l: &mut Level,
+        ) {
+            MapObject::spawn_blood(x, y, z, dam, l);
+            if dam > 0 {
+                thing.p_take_damage(None, shooter, false, dam);
+            }
+        }
+
+        aim_trace.fire(
+            self,
             level,
-            |intercept| shoot_traverse.resolve(self, intercept),
-            bsp_trace,
+            aim_slope,
+            damage,
+            &mut |x, y, z, d, l| MapObject::spawn_puff(x, y, z, d, l),
+            &mut |x, y, z, d, dm, s, t, l| hit_with_shot(x, y, z, d, dm, s, t, l),
+        );
+    }
+
+    pub(crate) fn shoot_line_trace_attack(
+        &mut self,
+        attack_range: fixed_t,
+        angle: Angle,
+        aim_slope: fixed_t,
+        damage: i32,
+    ) {
+        let aim_trace = AimTrace::from_origin(
+            self.xy.x,
+            self.xy.y,
+            aim_slope,
+            aim_slope,
+            angle,
+            attack_range,
+            self.z + (self.height >> 1) + fixed_t::from_int(8),
+            false,
+        );
+
+        let level = unsafe { &mut *self.level };
+
+        fn hit_with_shot(
+            x: fixed_t,
+            y: fixed_t,
+            z: fixed_t,
+            d: fixed_t,
+            dam: i32,
+            shooter: Option<&mut MapObject>,
+            thing: &mut MapObject,
+            l: &mut Level,
+        ) {
+            MapObject::spawn_blood(x, y, z, dam, l);
+            if dam > 0 {
+                thing.p_take_damage(None, shooter, false, dam);
+            }
+        }
+
+        aim_trace.fire(
+            self,
+            level,
+            aim_slope,
+            damage,
+            &mut |x, y, z, d, l| MapObject::spawn_puff(x, y, z, d, l),
+            &mut |x, y, z, d, dm, s, t, l| hit_with_shot(x, y, z, d, dm, s, t, l),
         );
     }
 
@@ -217,7 +277,7 @@ impl MapObject {
         bullet_slope: fixed_t,
         shootz: fixed_t,
     ) {
-        let damage = (5.0 * (p_random() % 3 + 1) as f32) as i32;
+        let damage = (5 * (p_random() % 3 + 1));
         let mut angle = self.angle;
         fn hit_with_shot(
             x: fixed_t,
@@ -247,6 +307,7 @@ impl MapObject {
             angle,
             distance,
             shootz,
+            false,
         );
 
         let level = unsafe { self.level.as_mut() }.unwrap();
@@ -259,27 +320,6 @@ impl MapObject {
             &mut |x, y, z, d, l| MapObject::spawn_puff(x, y, z, d, l),
             &mut |x, y, z, d, dm, s, t, l| hit_with_shot(x, y, z, d, dm, s, t, l),
         );
-    }
-
-    pub(crate) fn gun_shot(
-        &mut self,
-        accurate: bool,
-        distance: fixed_t,
-        bullet_slope: Option<AimResult>,
-        bsp_trace: &mut BSPTrace,
-    ) {
-        let damage = 5.0 * (p_random() % 3 + 1) as f32;
-        let mut angle = self.angle;
-
-        if !accurate {
-            angle += Angle::new(((p_random() - p_random()) << FUZZY_AIM_SHIFT) as u32);
-        }
-
-        if let Some(res) = bullet_slope {
-            self.shoot_line_attack(distance, angle, res.aimslope, damage as i32, bsp_trace);
-        } else {
-            self.shoot_line_attack(distance, angle, FT_ZERO, damage as i32, bsp_trace);
-        }
     }
 
     /// Try to attack along a line using the previous `AimResult` and
@@ -299,54 +339,21 @@ impl MapObject {
         }
     }
 
-    /// Get a `BSPTrace` for the selected point. It uses the shooters radius to
-    /// get visibility as opposed to using the victims radius (this should
-    /// be changed to the reverse).
-    pub(crate) fn get_sight_bsp_trace(&self, xy2: VecF2) -> BSPTrace {
-        // Use a radius for shooting to enable a sort of swept volume to capture more
-        // subsectors as demons might overlap from a subsector that isn't caught
-        // otherwise (for example demon might be in one subsector but overlap
-        // with radius in to a subsector the bullet passes through).
-        let mut bsp_trace = BSPTrace::new_line(self.xy, xy2, self.radius);
-        let mut count = 0;
-        let level = unsafe { &mut *self.level };
-        bsp_trace.find_intercepts(level.map_data.start_node(), &level.map_data, &mut count);
-        bsp_trace
-    }
-
-    /// Check if there is a clear line of sight to the selected point.
-    ///
-    /// Note that this doesn't take in to account the radius of the point.
-    pub(crate) fn check_sight(
+    /// Try to attack along a line using the previous `AimResult` and
+    /// `BSPTrace`.
+    pub(crate) fn trace_line_attack(
         &mut self,
-        to_xy: VecF2,
-        to_z: fixed_t,
-        to_height: fixed_t,
-        bsp_trace: &mut BSPTrace,
-    ) -> bool {
-        let z_start = self.z + (self.height / FT_TWO) + FT_EIGHT;
-        let mut sight_traverse =
-            SubSectTraverse::new(to_z + to_height - z_start, to_z - z_start, FT_ZERO, z_start);
-
-        let level = unsafe { &mut *self.level };
-        path_traverse(
-            self.xy,
-            to_xy,
-            PT_ADDLINES,
-            level,
-            |t| sight_traverse.check_traverse(t),
-            bsp_trace,
-        )
+        distance: fixed_t,
+        angle: Angle,
+        damage: i32,
+        aim_hit: Option<AimHit>,
+    ) {
+        if let Some(res) = aim_hit {
+            self.shoot_line_trace_attack(distance, angle, res.slope, damage);
+        } else {
+            self.shoot_line_trace_attack(distance, angle, FT_ZERO, damage);
+        }
     }
-
-    /// Check the target is within a minimum distance
-    /*
-    pub(crate) fn target_within_min_dist(&self, target: &MapObject) -> bool {
-        // skip the BSP trace if too far away
-        let dist = self.xy.distance_squared(target.xy);
-        // approx 1500.0 units * 2
-        dist < TARGET_SEEK_DIST_SQUARED
-    }*/
 
     /// Iterate through the available live players and check if there is a LOS
     /// to one.
@@ -377,10 +384,9 @@ impl MapObject {
 
                 let xy = target.xy;
                 let z = target.z;
-                let height = target.height;
 
-                let mut bsp_trace = self.get_sight_bsp_trace(xy);
-                if !self.check_sight(xy, z, height, &mut bsp_trace) {
+                let sight_trace = SightTrace::to_target(self.xy.x, self.xy.y, z, target);
+                if !sight_trace.check_aim_target(self, target).is_some() {
                     continue;
                 }
 
@@ -430,8 +436,9 @@ impl MapObject {
         // if !self.target_within_min_dist(target) {
         //     return false;
         // }
-        let mut bsp_trace = self.get_sight_bsp_trace(target.xy);
-        self.check_sight(target.xy, target.z, target.height, &mut bsp_trace)
+        let shoot_z = self.z + (self.height >> 1) + FT_EIGHT;
+        let sight_trace = SightTrace::to_target(self.xy.x, self.xy.y, shoot_z, target);
+        sight_trace.check_aim_target(self, target).is_some()
     }
 
     pub(crate) fn check_melee_range(&mut self) -> bool {
@@ -445,8 +452,9 @@ impl MapObject {
                 return false;
             }
 
-            let mut bsp_trace = self.get_sight_bsp_trace(target.xy);
-            if self.check_sight(target.xy, target.z, target.height, &mut bsp_trace) {
+            let shoot_z = self.z + (self.height >> 1) + FT_EIGHT;
+            let sight_trace = SightTrace::to_target(self.xy.x, self.xy.y, shoot_z, target);
+            if sight_trace.check_aim_target(self, target).is_some() {
                 return true;
             }
         }
@@ -464,9 +472,9 @@ impl MapObject {
             // if !self.target_within_min_dist(target) {
             //     return false;
             // }
-
-            let mut bsp_trace = self.get_sight_bsp_trace(target.xy);
-            if !self.check_sight(target.xy, target.z, target.height, &mut bsp_trace) {
+            let shoot_z = self.z + (self.height >> 1) + FT_EIGHT;
+            let sight_trace = SightTrace::to_target(self.xy.x, self.xy.y, shoot_z, target);
+            if !sight_trace.check_aim_target(self, target).is_some() {
                 return false;
             }
 
@@ -501,7 +509,7 @@ impl MapObject {
                 self.kind,
                 MapObjKind::MT_CYBORG | MapObjKind::MT_SPIDER | MapObjKind::MT_SKULL
             ) {
-                dist /= fixed_t::from_int(2);
+                dist /= FT_TWO;
             }
 
             if dist > fixed_t::from_int(200) {
@@ -566,33 +574,6 @@ impl SubSectTraverse {
         }
     }
 
-    /// Returns false if the intercept blocks the target. Does not require
-    /// `self.attack_range` to be set.
-    fn check_traverse(&mut self, intercept: &mut Intercept) -> bool {
-        if let Some(line) = intercept.line.as_mut() {
-            // Check if solid line and stop
-            if line.flags & LineDefFlags::TwoSided as u32 == 0 {
-                return false;
-            }
-
-            let portal = PortalZ::new(line);
-            if portal.bottom_z >= portal.top_z {
-                return false;
-            }
-
-            let dist = intercept.frac;
-            self.set_slope(line, &portal, dist);
-
-            if self.top_slope <= self.bot_slope {
-                return false;
-            }
-
-            return true;
-        }
-
-        false
-    }
-
     /// After `check()` is called, a result should be checked for
     fn check_aim(&mut self, shooter: &mut MapObject, intercept: &mut Intercept) -> bool {
         if let Some(line) = intercept.line.as_mut() {
@@ -642,7 +623,7 @@ impl SubSectTraverse {
                 thing_bot_slope = self.bot_slope;
             }
             self.result = Some(AimResult {
-                aimslope: (thing_top_slope + thing_bot_slope) / FT_TWO,
+                aimslope: (thing_top_slope + thing_bot_slope) >> 1,
                 line_target: thing.clone(),
             });
         }
@@ -701,7 +682,7 @@ impl ShootTraverse {
                 }
             }
         }
-
+        info!("HIT A LINE");
         MapObject::spawn_puff(x, y, z, self.attack_range, unsafe { &mut *shooter.level });
     }
 
@@ -713,7 +694,7 @@ impl ShootTraverse {
             }
 
             // Check if solid line and stop
-            if line.flags & LineDefFlags::TwoSided as u32 == 0 {
+            if (line.flags & LineDefFlags::TwoSided as u32 == 0) {
                 self.hit_line(shooter, intercept.frac, line);
                 return false;
             }

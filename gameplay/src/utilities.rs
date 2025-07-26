@@ -8,7 +8,7 @@ use crate::level::Level;
 use crate::level::map_data::BSPTrace;
 use crate::level::map_defs::{BBox, LineDef, SlopeType};
 use math::{
-    FT_MAX, FT_ONE, FT_ZERO, Trace, VecF2, circle_seg_collide, fixed_t, intercept_vector,
+    FT_MAX, FT_MIN, FT_ONE, FT_ZERO, Trace, VecF2, circle_seg_collide, fixed_t, intercept_vector,
     point_on_side,
 };
 
@@ -115,10 +115,10 @@ impl PortalZ {
         let back = unsafe { line.backsector.as_ref().unwrap_unchecked() };
 
         let mut ww = PortalZ {
-            top_z: FT_ZERO,
-            bottom_z: FT_ZERO,
+            top_z: FT_MAX,
+            bottom_z: FT_MIN,
             range: FT_ZERO,
-            lowest_z: FT_ZERO,
+            lowest_z: FT_MIN,
         };
 
         if front.ceilingheight < back.ceilingheight {
@@ -236,8 +236,8 @@ pub fn add_line_intercepts(
     intercepts: &mut Vec<Intercept>,
     earlyout: bool,
 ) -> bool {
-    let s1 = point_on_side(&line.v1, &line.v2, &trace.xy);
-    let s2 = point_on_side(&line.v1, &line.v2, &(trace.xy + trace.dxy));
+    let s1 = point_on_side(&trace.xy, &(trace.xy + trace.dxy), &line.v1);
+    let s2 = point_on_side(&trace.xy, &(trace.xy + trace.dxy), &line.v2);
 
     if s1 == s2 {
         // line isn't crossed
@@ -251,7 +251,7 @@ pub fn add_line_intercepts(
         return true;
     }
 
-    if earlyout && frac < fixed_t::from_int(1) && line.backsector.is_none() {
+    if earlyout && frac <= fixed_t::from_int(1) && line.backsector.is_none() {
         return false;
     }
     /*

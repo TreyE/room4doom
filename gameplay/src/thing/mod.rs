@@ -573,14 +573,8 @@ impl MapObject {
     }
 
     /// Blood! In a game-exe!
-    pub(crate) fn spawn_blood(
-        x: fixed_t,
-        y: fixed_t,
-        mut z: fixed_t,
-        damage: i32,
-        level: &mut Level,
-    ) {
-        z += fixed_t::new((p_random() - p_random()) << 10);
+    pub(crate) fn spawn_blood(x: fixed_t, y: fixed_t, z: fixed_t, damage: i32, level: &mut Level) {
+        let z = z + fixed_t::new((p_random() - p_random()) << 10);
         let mobj = MapObject::spawn_map_object(x, y, z, MapObjKind::MT_BLOOD, level);
         let mobj = unsafe { &mut *mobj };
         mobj.momz = fixed_t::from_int(2);
@@ -660,7 +654,7 @@ impl MapObject {
             mobj.start_sound(mobj.info.seesound);
         }
 
-        mobj.angle = point_to_angle_2(target.xy, source.xy);
+        mobj.angle = point_to_angle_2(source.xy, target.xy);
         // fuzzy player
         if target.flags & MapObjFlag::Shadow as u32 != 0 {
             mobj.angle += Angle::from_int((p_random() - p_random()) >> FUZZY_AIM_SHIFT);

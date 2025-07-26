@@ -19,6 +19,17 @@ pub struct AimTrace {
     pub(crate) distance: fixed_t,
     pub(crate) angle: Angle,
     pub(crate) shoot_z: fixed_t,
+    pub(crate) monster_aim_check: bool,
+}
+
+#[derive(Debug)]
+pub struct SightTrace {
+    pub(crate) start: VecF2,
+    pub(crate) end: VecF2,
+    pub(crate) min_aim_slope: fixed_t,
+    pub(crate) max_aim_slope: fixed_t,
+    pub(crate) distance: fixed_t,
+    pub(crate) shoot_z: fixed_t,
 }
 
 #[derive(Default, Clone)]
@@ -41,11 +52,159 @@ pub(crate) struct AimHit {
     hit_z: fixed_t,
 }
 
-pub(crate) struct ShotHit {
-    thing: Option<*mut Thinker>,
-    line: Option<MapPtr<LineDef>>,
-    hit_location: VecF2,
-    hit_z: fixed_t,
+#[derive(Debug)]
+pub(crate) struct SightResult {
+    pub(crate) angle: Angle,
+    pub(crate) slope: fixed_t,
+}
+
+impl SightTrace {
+    pub(crate) fn to_location(
+        x: fixed_t,
+        y: fixed_t,
+        shoot_z: fixed_t,
+        target_location: VecF2,
+    ) -> Self {
+        let start_loc = VecF2::new(x, y);
+        let distance = (start_loc - target_location).length();
+        SightTrace {
+            start: VecF2::new(x, y),
+            end: target_location,
+            min_aim_slope: FT_MIN,
+            max_aim_slope: FT_MAX,
+            distance,
+            shoot_z,
+        }
+    }
+
+    pub(crate) fn to_target(x: fixed_t, y: fixed_t, shoot_z: fixed_t, target: &MapObject) -> Self {
+        let start_loc = VecF2::new(x, y);
+        let end = target.xy;
+        let distance = (start_loc - end).length();
+        SightTrace {
+            start: VecF2::new(x, y),
+            end,
+            min_aim_slope: FT_MIN,
+            max_aim_slope: FT_MAX,
+            distance,
+            shoot_z,
+        }
+    }
+
+    pub(crate) fn check_aim(
+        &self,
+        shooter: &MapObject,
+        target_xy: &VecF2,
+        target_z: fixed_t,
+        target_height: fixed_t,
+    ) -> Option<SightResult> {
+        let blockmap = &shooter.level().map_data.blockmap;
+        let intercepts = self.intercepts(&blockmap);
+
+        let mut tl = TraverseLimits {
+            max_slope: self.max_aim_slope,
+            min_slope: self.min_aim_slope,
+        };
+
+        let _ = intercepts
+            .into_iter()
+            .take_while(|f| {
+                if let Some(line) = &f.line {
+                    if line.back_sidedef.is_none() {
+                        tl.max_slope = FT_MIN;
+                        tl.min_slope = FT_MAX;
+                        return false;
+                    } else {
+                        let s1 = &line.frontsector;
+                        let s2 = &line.backsector.as_ref().unwrap();
+                        let s1c = s1.ceilingheight;
+                        let s1f = s1.floorheight;
+                        let s2c = s2.ceilingheight;
+                        let s2f = s2.floorheight;
+
+                        if s1c == s1f || s2c == s2f {
+                            return false;
+                        }
+
+                        if s1c <= s2f || s1f >= s2c {
+                            return false;
+                        }
+
+                        let new_max_slope = if s1c >= s2c {
+                            (s2c - self.shoot_z) / (self.distance * f.frac)
+                        } else {
+                            (s1c - self.shoot_z) / (self.distance * f.frac)
+                        };
+
+                        let new_min_slope = if s1f >= s2f {
+                            (s1f - self.shoot_z) / (self.distance * f.frac)
+                        } else {
+                            (s2f - self.shoot_z) / (self.distance * f.frac)
+                        };
+
+                        if tl.max_slope > new_max_slope {
+                            tl.max_slope = new_max_slope;
+                        }
+                        if tl.min_slope < new_min_slope {
+                            tl.min_slope = new_min_slope;
+                        }
+
+                        if tl.min_slope > tl.max_slope {
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            })
+            .collect::<Vec<Intercept>>();
+
+        let max_target_slope =
+            ((target_z + target_height) - self.shoot_z) / ((self.start - (*target_xy)).length());
+        let min_target_slope = (target_z - self.shoot_z) / ((self.start - (*target_xy)).length());
+
+        let aim_max = max_target_slope.min(tl.max_slope);
+        let aim_min = min_target_slope.max(tl.min_slope);
+
+        if (aim_max < aim_min) {
+            return None;
+        }
+
+        Some(SightResult {
+            angle: (self.end - self.start).to_angle(),
+            slope: (aim_min + aim_max) >> 1,
+        })
+    }
+
+    pub(crate) fn check_aim_target(
+        &self,
+        shooter: &MapObject,
+        target: &MapObject,
+    ) -> Option<SightResult> {
+        self.check_aim(shooter, &target.xy, target.z, target.height)
+    }
+
+    fn intercepts(&self, blockmap: &Blockmap) -> Vec<Intercept> {
+        let search_indexes = block_march(&self.start, &self.end, blockmap);
+        let mut intercepts = Vec::new();
+
+        for i in search_indexes {
+            let lines = &blockmap.blocklines[(blockmap.columns * i.1) + i.0];
+            for line in lines {
+                if let Some(frac) = frac_hit_line(&self.start, &self.end, &line.v1, &line.v2) {
+                    if frac > FT_ZERO && frac <= FT_ONE {
+                        intercepts.push(Intercept {
+                            frac,
+                            thing: None,
+                            line: Some(line.clone()),
+                        })
+                    }
+                }
+            }
+        }
+
+        intercepts.sort_by(|a, b| a.frac.0.cmp(&b.frac.0));
+        intercepts
+    }
 }
 
 impl AimTrace {
@@ -57,6 +216,7 @@ impl AimTrace {
         angle: Angle,
         distance: fixed_t,
         shoot_z: fixed_t,
+        monster_aim_check: bool,
     ) -> Self {
         let end_location_x = x + distance * angle.finecos();
         let end_location_y = y + distance * angle.finesin();
@@ -68,75 +228,19 @@ impl AimTrace {
             shoot_z,
             min_aim_slope: min_aim,
             max_aim_slope: max_aim,
+            monster_aim_check: false,
         }
-    }
-
-    // Provide a list of indexes to walk for the blockmap
-    fn block_march(&self, blockmap: &Blockmap) -> Vec<(usize, usize)> {
-        let mut result = Vec::new();
-
-        let xstart = self.start.x - blockmap.x_origin;
-        let xend = self.end.x - blockmap.x_origin;
-
-        let ystart = self.start.y - blockmap.y_origin;
-        let yend = self.end.y - blockmap.y_origin;
-
-        let mut minx;
-        let mut miny;
-        let mut maxx;
-        let mut maxy;
-
-        if (xend >= xstart) {
-            minx = xstart >> 23;
-            maxx = xend >> 23;
-        } else {
-            minx = xend >> 23;
-            maxx = xstart >> 23;
-        }
-
-        if (yend >= ystart) {
-            miny = ystart >> 23;
-            maxy = yend >> 23;
-        } else {
-            miny = yend >> 23;
-            maxy = ystart >> 23;
-        }
-
-        if minx < FT_ZERO {
-            minx = FT_ZERO;
-        }
-        if miny < FT_ZERO {
-            miny = FT_ZERO;
-        }
-
-        maxx = maxx + fixed_t::new(1);
-        maxy = maxy + fixed_t::new(1);
-
-        if maxx > fixed_t::new(blockmap.columns as i32) {
-            maxx = fixed_t::new(blockmap.columns as i32);
-        }
-        if maxy > fixed_t::new(blockmap.rows as i32) {
-            maxy = fixed_t::new(blockmap.rows as i32);
-        }
-
-        for x in minx.0..maxx.0 {
-            for y in miny.0..maxy.0 {
-                result.push((x as usize, y as usize));
-            }
-        }
-
-        result
     }
 
     fn intercepts(&self, blockmap: &Blockmap, shooter: &MapObject) -> Vec<Intercept> {
-        let search_indexes = self.block_march(blockmap);
+        let search_indexes = block_march(&self.start, &self.end, blockmap);
         let mut intercepts = Vec::new();
 
         for i in search_indexes {
             let lines = &blockmap.blocklines[(blockmap.columns * i.1) + i.0];
             let mut things = blockmap.thinglist[(blockmap.columns * i.1) + i.0];
             for line in lines {
-                if let Some(frac) = self.frac_hit_line(&line.v1, &line.v2) {
+                if let Some(frac) = frac_hit_line(&self.start, &self.end, &line.v1, &line.v2) {
                     if frac > FT_ZERO {
                         intercepts.push(Intercept {
                             frac,
@@ -229,19 +333,24 @@ impl AimTrace {
                             tl.min_slope = new_min_slope;
                         }
 
-                        if tl.min_slope >= tl.max_slope {
+                        if tl.min_slope > tl.max_slope {
                             return false;
                         }
                     }
                 } else if let Some(thing) = f.thing {
                     let the_thing = unsafe { thing.as_ref() }.unwrap();
                     if let Some(shootable) = the_thing.shootable() {
+                        if self.monster_aim_check {
+                            if shootable.player().is_none() {
+                                return true;
+                            }
+                        }
                         let top_z = shootable.z + shootable.height;
                         let bot_z = shootable.z;
                         let z_attempt = if top_z >= self.shoot_z && bot_z <= self.shoot_z {
                             self.shoot_z
                         } else {
-                            (top_z + bot_z) / FT_TWO
+                            (top_z + bot_z) >> 1
                         };
                         let slope = (z_attempt - self.shoot_z) / (self.distance * f.frac);
                         let hit_dist = self.distance * f.frac;
@@ -291,8 +400,8 @@ impl AimTrace {
         let intercepts = self.intercepts(&blockmap, shooter);
 
         let mut tl = TraverseLimits {
-            max_slope: self.max_aim_slope,
-            min_slope: self.min_aim_slope,
+            max_slope: slope,
+            min_slope: slope,
         };
 
         let _ = intercepts
@@ -319,6 +428,7 @@ impl AimTrace {
                             let hit_loc_x = self.start.x + self.angle.finecos() * hit_dist;
                             let hit_loc_y = self.start.y + self.angle.finesin() * hit_dist;
                             let z_attempt = self.shoot_z + (slope * hit_dist);
+                            info!("Sectors touch!");
                             onhit_wall(hit_loc_x, hit_loc_y, z_attempt, self.distance, level);
                             return false;
                         }
@@ -328,6 +438,7 @@ impl AimTrace {
                             let hit_loc_x = self.start.x + self.angle.finecos() * hit_dist;
                             let hit_loc_y = self.start.y + self.angle.finesin() * hit_dist;
                             let z_attempt = self.shoot_z + (slope * hit_dist);
+                            info!("Hit ceiling or floor!");
                             onhit_wall(hit_loc_x, hit_loc_y, z_attempt, self.distance, level);
                             return false;
                         }
@@ -350,7 +461,7 @@ impl AimTrace {
                         if tl.min_slope < new_min_slope {
                             tl.min_slope = new_min_slope;
                         }
-                        if tl.min_slope >= tl.max_slope {
+                        if tl.min_slope > tl.max_slope {
                             let hit_dist = self.distance * f.frac;
                             let hit_loc_x = self.start.x + self.angle.finecos() * hit_dist;
                             let hit_loc_y = self.start.y + self.angle.finesin() * hit_dist;
@@ -397,16 +508,77 @@ impl AimTrace {
             })
             .collect::<Vec<Intercept>>();
     }
+}
 
-    fn frac_hit_line(&self, line_hit_start: &VecF2, line_hit_end: &VecF2) -> Option<fixed_t> {
-        if !check_hit_line(&self.start, &self.end, &line_hit_start, &line_hit_end) {
-            return None;
-        }
-        let dl = Trace::new(*line_hit_start, *line_hit_end - *line_hit_start);
-        let trace = Trace::new(self.start, self.end - self.start);
-        let i_vector = intercept_vector(trace, dl);
-        Some(i_vector)
+fn frac_hit_line(
+    start: &VecF2,
+    end: &VecF2,
+    line_hit_start: &VecF2,
+    line_hit_end: &VecF2,
+) -> Option<fixed_t> {
+    if !check_hit_line(start, end, &line_hit_start, &line_hit_end) {
+        return None;
     }
+    let dl = Trace::new(*line_hit_start, *line_hit_end - *line_hit_start);
+    let trace = Trace::new((*start), (*end) - (*start));
+    let i_vector = intercept_vector(trace, dl);
+    Some(i_vector)
+}
+
+fn block_march(start: &VecF2, end: &VecF2, blockmap: &Blockmap) -> Vec<(usize, usize)> {
+    let mut result = Vec::new();
+
+    let xstart = start.x - blockmap.x_origin;
+    let xend = end.x - blockmap.x_origin;
+
+    let ystart = start.y - blockmap.y_origin;
+    let yend = end.y - blockmap.y_origin;
+
+    let mut minx;
+    let mut miny;
+    let mut maxx;
+    let mut maxy;
+
+    if (xend >= xstart) {
+        minx = xstart >> 23;
+        maxx = xend >> 23;
+    } else {
+        minx = xend >> 23;
+        maxx = xstart >> 23;
+    }
+
+    if (yend >= ystart) {
+        miny = ystart >> 23;
+        maxy = yend >> 23;
+    } else {
+        miny = yend >> 23;
+        maxy = ystart >> 23;
+    }
+
+    if minx < FT_ZERO {
+        minx = FT_ZERO;
+    }
+    if miny < FT_ZERO {
+        miny = FT_ZERO;
+    }
+
+    maxx = maxx + fixed_t::new(1);
+    maxy = maxy + fixed_t::new(1);
+
+    if maxx > fixed_t::new(blockmap.columns as i32) {
+        maxx = fixed_t::new(blockmap.columns as i32);
+    }
+    if maxy > fixed_t::new(blockmap.rows as i32) {
+        maxy = fixed_t::new(blockmap.rows as i32);
+    }
+
+    for x in minx.0..maxx.0 {
+        for y in miny.0..maxy.0 {
+            result.push((x as usize, y as usize));
+        }
+    }
+
+    result
 }
 
 fn check_hit_line(

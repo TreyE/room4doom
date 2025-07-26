@@ -18,6 +18,8 @@ use crate::env::doors::{DoorKind, ev_do_door};
 use crate::env::floor::{FloorKind, ev_do_floor};
 use crate::info::{MOBJINFO, StateNum};
 use crate::level::map_defs::{LineDef, SlopeType};
+use crate::thing::shooting::AimResult;
+use crate::thing::trace::AimTrace;
 use crate::thing::{MapObjFlag, MapObject, MoveDir};
 use crate::thinker::{Thinker, ThinkerData};
 use crate::utilities::PortalZ;
@@ -25,8 +27,8 @@ use crate::{
     Angle, GameMode, LineDefFlags, MAXPLAYERS, MapObjKind, MapPtr, Sector, Skill, teleport_move,
 };
 use math::{
-    ANG45, ANG90, ANG180, ANG270, FT_EIGHT, FT_FOUR, FT_ONE, FT_SIXTEEN, FT_TWO, FT_ZERO, fixed_t,
-    p_random, point_to_angle_2,
+    ANG45, ANG90, ANG180, ANG270, FT_EIGHT, FT_FOUR, FT_MAX, FT_MIN, FT_ONE, FT_SIXTEEN, FT_TWO,
+    FT_ZERO, fixed_t, p_random, point_to_angle_2,
 };
 
 use super::movement::SubSectorMinMax;
@@ -634,15 +636,27 @@ pub(crate) fn a_posattack(actor: &mut MapObject) {
     }
 
     a_facetarget(actor);
-    let mut bsp_trace = actor.get_shoot_bsp_trace(MISSILERANGE);
-    let slope = actor.aim_line_attack(MISSILERANGE, &mut bsp_trace);
+
+    let shootz = actor.z + (actor.height >> 1) + fixed_t::from_int(8);
+
+    let aim_trace = AimTrace::from_origin(
+        actor.xy.x,
+        actor.xy.y,
+        FT_MIN,
+        FT_MAX,
+        actor.angle,
+        MISSILERANGE,
+        shootz,
+        false,
+    );
+    let slope = aim_trace.aim(actor);
 
     actor.start_sound(SfxName::Pistol);
 
     let mut angle = actor.angle;
     angle += Angle::new(((p_random() - p_random()) as u32) << 20);
     let damage = ((p_random() % 5) + 1) * 3;
-    actor.line_attack(damage, MISSILERANGE, angle, slope, &mut bsp_trace);
+    actor.trace_line_attack(MISSILERANGE, angle, damage, slope);
 }
 
 pub(crate) fn a_sposattack(actor: &mut MapObject) {

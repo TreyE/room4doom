@@ -111,7 +111,7 @@ pub fn ev_do_ceiling(line: MapPtr<LineDef>, kind: CeilKind, level: &mut Level) -
                 ceiling.topheight = sec.ceilingheight;
                 ceiling.bottomheight = sec.floorheight + FT_EIGHT;
                 ceiling.direction = -1;
-                ceiling.speed *= FT_TWO;
+                ceiling.speed *= fixed_t::new(2);
             }
         }
 
