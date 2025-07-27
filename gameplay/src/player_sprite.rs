@@ -168,7 +168,6 @@ fn shoot_bullet(player: &mut Player) {
             FT_ZERO
         };
 
-        info!("Player aim result: {:?}", b_slope);
         mobj.player_gun_shot(refire == 0, fixed_t::from_int(1024), b_slope, view_z);
     }
 }
