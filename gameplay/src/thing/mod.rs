@@ -19,6 +19,7 @@ use self::movement::SubSectorMinMax;
 
 use crate::doom_def::{FUZZY_AIM_SHIFT, MELEERANGE, MISSILERANGE, MTF_SINGLE_PLAYER};
 use crate::level::Level;
+use crate::thing::trace::AimTrace;
 use crate::thinker::{Think, Thinker, ThinkerData};
 use crate::{MapPtr, Skill};
 use glam::Vec2;
@@ -601,24 +602,57 @@ impl MapObject {
         let y = source.xy.y;
         let z = source.z + fixed_t::from_int(32);
 
-        let mobj = MapObject::spawn_map_object(x, y, z, kind, level);
-        let mobj = unsafe { &mut *mobj };
-        mobj.angle = source.angle;
+        let mut angle = source.angle;
+        let mut aim_trace = AimTrace::from_origin(
+            x,
+            y,
+            fixed_t::from_float(-100.0 / 160.0),
+            fixed_t::from_float(100.0 / 160.0),
+            angle,
+            fixed_t::from_int(1024),
+            z,
+            false,
+        );
 
-        let mut bsp_trace = mobj.get_shoot_bsp_trace(MISSILERANGE);
-        let mut slope = mobj.aim_line_attack(MISSILERANGE, &mut bsp_trace);
-
-        if slope.is_none() {
-            mobj.angle += Angle::new(1 << 26 as u32);
-            slope = mobj.aim_line_attack(MISSILERANGE, &mut bsp_trace);
-            if slope.is_none() {
-                mobj.angle -= Angle::new(2 << 26 as u32);
-                slope = mobj.aim_line_attack(MISSILERANGE, &mut bsp_trace);
-            }
-            if slope.is_none() {
-                mobj.angle = source.angle;
+        let mut aim_result = aim_trace.aim(source);
+        let mut slope = FT_ZERO;
+        if aim_result.is_none() {
+            angle += Angle::new(1 << 26 as u32);
+            aim_trace = AimTrace::from_origin(
+                x,
+                y,
+                fixed_t::from_float(-100.0 / 160.0),
+                fixed_t::from_float(100.0 / 160.0),
+                angle,
+                fixed_t::from_int(1024),
+                z,
+                false,
+            );
+            aim_result = aim_trace.aim(source);
+            if aim_result.is_none() {
+                angle -= Angle::new(2 << 26 as u32);
+                aim_trace = AimTrace::from_origin(
+                    x,
+                    y,
+                    fixed_t::from_float(-100.0 / 160.0),
+                    fixed_t::from_float(100.0 / 160.0),
+                    angle,
+                    fixed_t::from_int(1024),
+                    z,
+                    false,
+                );
+                aim_result = aim_trace.aim(source);
             }
         }
+        if aim_result.is_none() {
+            angle = source.angle;
+        } else {
+            slope = aim_result.unwrap().slope;
+        }
+
+        let mobj = MapObject::spawn_map_object(x, y, z, kind, level);
+        let mobj = unsafe { &mut *mobj };
+        mobj.angle = angle;
 
         if !matches!(mobj.info.seesound, SfxName::None | SfxName::NumSfx) {
             mobj.start_sound(mobj.info.seesound);
@@ -626,9 +660,7 @@ impl MapObject {
 
         mobj.target = Some(source.thinker);
         mobj.momxy = mobj.angle.unit() * mobj.info.speed;
-        mobj.momz = slope
-            .map(|s| s.aimslope * mobj.info.speed)
-            .unwrap_or(FT_ZERO);
+        mobj.momz = slope * mobj.info.speed;
         mobj.check_missile_spawn();
     }
 
