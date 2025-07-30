@@ -150,56 +150,9 @@ fn shoot_bullet(player: &mut Player) {
         mobj.start_sound(SfxName::Pistol);
         mobj.set_state(StateNum::PLAY_ATK2);
 
-        let x = mobj.xy.x;
-        let y = mobj.xy.y;
+        let (slope, angle) = mobj.player_try_aim(z);
 
-        let mut angle = mobj.angle;
-        let mut aim_trace = AimTrace::from_origin(
-            x,
-            y,
-            fixed_t::from_float(-100.0 / 160.0),
-            fixed_t::from_float(100.0 / 160.0),
-            angle,
-            MISSILERANGE,
-            z,
-            false,
-        );
-
-        let mut aim_result = aim_trace.aim(mobj);
-        let mut slope = FT_ZERO;
-        if aim_result.is_none() {
-            angle += Angle::new(1 << 26 as u32);
-            aim_trace = AimTrace::from_origin(
-                x,
-                y,
-                fixed_t::from_float(-100.0 / 160.0),
-                fixed_t::from_float(100.0 / 160.0),
-                angle,
-                MISSILERANGE,
-                z,
-                false,
-            );
-            aim_result = aim_trace.aim(mobj);
-            if aim_result.is_none() {
-                angle -= Angle::new(2 << 26 as u32);
-                aim_trace = AimTrace::from_origin(
-                    x,
-                    y,
-                    fixed_t::from_float(-100.0 / 160.0),
-                    fixed_t::from_float(100.0 / 160.0),
-                    angle,
-                    MISSILERANGE,
-                    z,
-                    false,
-                );
-                aim_result = aim_trace.aim(mobj);
-            }
-        }
-        if aim_result.is_some() {
-            slope = aim_result.unwrap().slope;
-        }
-
-        mobj.player_gun_shot(refire == 0, MISSILERANGE, slope, z);
+        mobj.player_gun_shot(refire == 0, angle, MISSILERANGE, slope, z);
     }
 }
 
@@ -220,57 +173,10 @@ pub(crate) fn a_fireshotgun(player: &mut Player, _pspr: &mut PspDef) {
     if let Some(mobj) = player.mobj_mut() {
         mobj.start_sound(SfxName::Shotgn);
         mobj.set_state(StateNum::PLAY_ATK2);
-        let x = mobj.xy.x;
-        let y = mobj.xy.y;
-
-        let mut angle = mobj.angle;
-        let mut aim_trace = AimTrace::from_origin(
-            x,
-            y,
-            fixed_t::from_float(-100.0 / 160.0),
-            fixed_t::from_float(100.0 / 160.0),
-            angle,
-            MISSILERANGE,
-            z,
-            false,
-        );
-
-        let mut aim_result = aim_trace.aim(mobj);
-        let mut slope = FT_ZERO;
-        if aim_result.is_none() {
-            angle += Angle::new(1 << 26 as u32);
-            aim_trace = AimTrace::from_origin(
-                x,
-                y,
-                fixed_t::from_float(-100.0 / 160.0),
-                fixed_t::from_float(100.0 / 160.0),
-                angle,
-                MISSILERANGE,
-                z,
-                false,
-            );
-            aim_result = aim_trace.aim(mobj);
-            if aim_result.is_none() {
-                angle -= Angle::new(2 << 26 as u32);
-                aim_trace = AimTrace::from_origin(
-                    x,
-                    y,
-                    fixed_t::from_float(-100.0 / 160.0),
-                    fixed_t::from_float(100.0 / 160.0),
-                    angle,
-                    MISSILERANGE,
-                    z,
-                    false,
-                );
-                aim_result = aim_trace.aim(mobj);
-            }
-        }
-        if aim_result.is_some() {
-            slope = aim_result.unwrap().slope;
-        }
+        let (slope, angle) = mobj.player_try_aim(z);
 
         for _ in 0..7 {
-            mobj.player_gun_shot(false, distance, slope, z);
+            mobj.player_gun_shot(false, angle, distance, slope, z);
         }
     }
 

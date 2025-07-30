@@ -273,12 +273,14 @@ impl MapObject {
     pub(crate) fn player_gun_shot(
         &mut self,
         accurate: bool,
+        in_angle: Angle,
         distance: fixed_t,
         bullet_slope: fixed_t,
         shootz: fixed_t,
     ) {
+        let mut angle = in_angle;
+
         let damage = (5 * (p_random() % 3 + 1));
-        let mut angle = self.angle;
         fn hit_with_shot(
             x: fixed_t,
             y: fixed_t,

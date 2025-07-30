@@ -590,6 +590,60 @@ impl MapObject {
         }
     }
 
+    pub(crate) fn player_try_aim(&mut self, player_z: fixed_t) -> (fixed_t, Angle) {
+        let x = self.xy.x;
+        let y = self.xy.y;
+
+        let mut angle = self.angle;
+        let mut aim_trace = AimTrace::from_origin(
+            x,
+            y,
+            fixed_t::from_float(-100.0 / 160.0),
+            fixed_t::from_float(100.0 / 160.0),
+            angle,
+            MISSILERANGE,
+            player_z,
+            false,
+        );
+
+        let mut aim_result = aim_trace.aim(self);
+        let mut slope = FT_ZERO;
+        if aim_result.is_none() {
+            angle += Angle::new(1 << 26 as u32);
+            aim_trace = AimTrace::from_origin(
+                x,
+                y,
+                fixed_t::from_float(-100.0 / 160.0),
+                fixed_t::from_float(100.0 / 160.0),
+                angle,
+                MISSILERANGE,
+                player_z,
+                false,
+            );
+            aim_result = aim_trace.aim(self);
+            if aim_result.is_none() {
+                angle -= Angle::new(2 << 26 as u32);
+                aim_trace = AimTrace::from_origin(
+                    x,
+                    y,
+                    fixed_t::from_float(-100.0 / 160.0),
+                    fixed_t::from_float(100.0 / 160.0),
+                    angle,
+                    MISSILERANGE,
+                    player_z,
+                    false,
+                );
+                aim_result = aim_trace.aim(self);
+            }
+        }
+        if aim_result.is_none() {
+            angle = self.angle;
+        } else {
+            slope = aim_result.unwrap().slope;
+        }
+        (slope, angle)
+    }
+
     /// A thinker for shooty blowy things.
     ///
     /// Doom function name is `P_SpawnPlayerMissile`
@@ -602,53 +656,7 @@ impl MapObject {
         let y = source.xy.y;
         let z = source.z + fixed_t::from_int(32);
 
-        let mut angle = source.angle;
-        let mut aim_trace = AimTrace::from_origin(
-            x,
-            y,
-            fixed_t::from_float(-100.0 / 160.0),
-            fixed_t::from_float(100.0 / 160.0),
-            angle,
-            fixed_t::from_int(1024),
-            z,
-            false,
-        );
-
-        let mut aim_result = aim_trace.aim(source);
-        let mut slope = FT_ZERO;
-        if aim_result.is_none() {
-            angle += Angle::new(1 << 26 as u32);
-            aim_trace = AimTrace::from_origin(
-                x,
-                y,
-                fixed_t::from_float(-100.0 / 160.0),
-                fixed_t::from_float(100.0 / 160.0),
-                angle,
-                fixed_t::from_int(1024),
-                z,
-                false,
-            );
-            aim_result = aim_trace.aim(source);
-            if aim_result.is_none() {
-                angle -= Angle::new(2 << 26 as u32);
-                aim_trace = AimTrace::from_origin(
-                    x,
-                    y,
-                    fixed_t::from_float(-100.0 / 160.0),
-                    fixed_t::from_float(100.0 / 160.0),
-                    angle,
-                    fixed_t::from_int(1024),
-                    z,
-                    false,
-                );
-                aim_result = aim_trace.aim(source);
-            }
-        }
-        if aim_result.is_none() {
-            angle = source.angle;
-        } else {
-            slope = aim_result.unwrap().slope;
-        }
+        let (slope, angle) = source.player_try_aim(z);
 
         let mobj = MapObject::spawn_map_object(x, y, z, kind, level);
         let mobj = unsafe { &mut *mobj };
@@ -659,7 +667,7 @@ impl MapObject {
         }
 
         mobj.target = Some(source.thinker);
-        mobj.momxy = mobj.angle.unit() * mobj.info.speed;
+        mobj.momxy = angle.unit() * mobj.info.speed;
         mobj.momz = slope * mobj.info.speed;
         mobj.check_missile_spawn();
     }

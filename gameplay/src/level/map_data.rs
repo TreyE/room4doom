@@ -469,7 +469,7 @@ impl MapData {
                 thinglist: Vec::with_capacity(wadblock.columns as usize * wadblock.rows as usize),
             };
 
-            for _ in 1..size {
+            for _ in 0..size {
                 blockmap.thinglist.push(None);
             }
 
