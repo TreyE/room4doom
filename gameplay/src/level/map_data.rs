@@ -12,7 +12,7 @@ use log::error;
 use log::{debug, error, warn};
 use math::{
     ANG90, Angle, FT_ONE, FT_TWO, FT_ZERO, VecF2, bam_to_radian, circle_line_collide, fixed_t,
-    fixed_to_float, point_to_angle_2,
+    fixed_to_float, point_on_side, point_to_angle_2,
 };
 use wad::WadData;
 use wad::extended::{ExtendedNodeType, NodeLumpType, WadExtendedMap};
@@ -473,15 +473,22 @@ impl MapData {
                 blockmap.thinglist.push(None);
             }
 
+            let mut bl_index: i32 = 0;
             for bl in wadblock.line_blocks {
                 let mut ld_list = Vec::new();
                 for bli in bl {
                     if bli != -1 {
                         let linedef = MapPtr::new(&mut self.linedefs[bli as usize]);
                         ld_list.push(linedef);
+                    } else if bli == 0 {
+                        let linedef = MapPtr::new(&mut self.linedefs[bli as usize]);
+                        if blockmap.contains_line(bl_index, linedef.v1, linedef.v2) {
+                            ld_list.push(linedef);
+                        }
                     }
                 }
                 blockmap.blocklines.push(ld_list);
+                bl_index += 1;
             }
 
             for l in wadblock.line_indexes {
@@ -923,6 +930,32 @@ impl BSPTrace {
 }
 
 impl Blockmap {
+    pub fn contains_line(&self, i: i32, v1: VecF2, v2: VecF2) -> bool {
+        let target_y = i / self.columns as i32;
+        let target_x = i % self.columns as i32;
+        let bottom = fixed_t::from_int(target_y * 128) + self.y_origin;
+        let left = fixed_t::from_int(target_x * 128) + self.x_origin;
+        let top = bottom + fixed_t::from_int(128);
+        let right = left + fixed_t::from_int(128);
+
+        check_hit_line(&v1, &v2, &VecF2::new(left, bottom), &VecF2::new(left, top))
+            || check_hit_line(&v1, &v2, &VecF2::new(left, top), &VecF2::new(right, top))
+            || check_hit_line(
+                &v1,
+                &v2,
+                &VecF2::new(right, top),
+                &VecF2::new(right, bottom),
+            )
+            || check_hit_line(
+                &v1,
+                &v2,
+                &VecF2::new(left, bottom),
+                &VecF2::new(right, bottom),
+            )
+            || ((v1.x <= right) && (v1.x >= left) && (v1.y >= bottom) && (v1.y <= top))
+            || ((v2.x <= right) && (v2.x >= left) && (v2.y >= bottom) && (v2.y <= top))
+    }
+
     pub fn offset(&self, x: fixed_t, y: fixed_t) -> Option<usize> {
         let target_x = (x - self.x_origin) >> 23;
         let target_y = (y - self.y_origin) >> 23;
@@ -1426,4 +1459,15 @@ mod tests {
         println!("03: {:#018b}", nodes[3].children[0]);
         println!("03: {:#018b}", nodes[3].children[1]);
     }
+}
+
+fn check_hit_line(
+    hitting_line_start: &VecF2,
+    hitting_line_end: &VecF2,
+    line_hit_start: &VecF2,
+    line_hit_end: &VecF2,
+) -> bool {
+    let s1 = point_on_side(&hitting_line_start, &hitting_line_end, &line_hit_start);
+    let s2 = point_on_side(&hitting_line_start, &hitting_line_end, &line_hit_end);
+    s1 != s2
 }

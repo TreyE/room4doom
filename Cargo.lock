@@ -142,6 +142,7 @@ version = "0.16.1"
 dependencies = [
  "gameplay",
  "gamestate-traits",
+ "math",
  "menu-doom",
  "nanoserde",
  "sound-nosnd",
@@ -416,6 +417,7 @@ dependencies = [
  "coarse-prof",
  "gameplay",
  "glam",
+ "math",
  "render-trait",
  "sdl2",
  "wad",
@@ -553,6 +555,7 @@ version = "0.16.1"
 dependencies = [
  "glam",
  "log",
+ "math",
  "nanoserde",
  "sound-traits",
  "wad",
@@ -564,6 +567,7 @@ version = "0.16.1"
 dependencies = [
  "glam",
  "log",
+ "math",
  "nanoserde",
  "sdl2",
  "sound-traits",
@@ -573,6 +577,9 @@ dependencies = [
 [[package]]
 name = "sound-traits"
 version = "0.16.1"
+dependencies = [
+ "math",
+]
 
 [[package]]
 name = "statusbar-doom"
@@ -680,6 +687,7 @@ name = "wad"
 version = "0.16.1"
 dependencies = [
  "log",
+ "math",
 ]
 
 [[package]]

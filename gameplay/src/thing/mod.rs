@@ -554,8 +554,6 @@ impl MapObject {
         attack_range: fixed_t,
         level: &mut Level,
     ) {
-        info!("SPAWN PUFF");
-
         let puff_z = z + fixed_t::new((p_random() - p_random()) << 10);
 
         let mobj = MapObject::spawn_map_object(x, y, puff_z, MapObjKind::MT_PUFF, level);

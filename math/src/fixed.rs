@@ -1,6 +1,6 @@
 use std::{
     f32, i32,
-    ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Shr, Sub, SubAssign},
+    ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Rem, Shr, Sub, SubAssign},
 };
 
 use crate::{
@@ -140,6 +140,14 @@ impl Div for fixed_t {
         } else {
             fixed_t::new((((self.0 as i64) << 16) / (rhs.0 as i64)) as i32)
         }
+    }
+}
+
+impl Rem for fixed_t {
+    type Output = fixed_t;
+
+    fn rem(self, rhs: Self) -> Self::Output {
+        fixed_t::new(self.0 % rhs.0)
     }
 }
 

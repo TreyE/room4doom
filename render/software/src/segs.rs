@@ -366,6 +366,7 @@ impl SegRender {
             if self.worldlow != self.worldbottom
                 || backsector.floorpic != frontsector.floorpic
                 || backsector.lightlevel != frontsector.lightlevel
+                || backsector.special != frontsector.special
             {
                 self.markfloor = true;
             } else {
@@ -376,6 +377,7 @@ impl SegRender {
             if self.worldhigh != self.worldtop
                 || backsector.ceilingpic != frontsector.ceilingpic
                 || backsector.lightlevel != frontsector.lightlevel
+                || backsector.special != frontsector.special
             {
                 self.markceiling = true;
             } else {
@@ -414,7 +416,6 @@ impl SegRender {
                 }
             }
 
-            self.rw_toptexturemid += sidedef.rowoffset.to_float();
             self.rw_bottomtexturemid += sidedef.rowoffset.to_float();
 
             // TODO: fix this. Enabed causes sprites to clip throguh some places
@@ -841,7 +842,7 @@ impl SegRender {
             if sky && self.sky_doubled {
                 select /= 2;
             }
-            select &= texture_column.len() - 1;
+            select %= texture_column.len() - 1;
             let tc = texture_column[select];
             if tc >= colourmap.len() {
                 return;
